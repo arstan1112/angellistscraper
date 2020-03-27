@@ -2,6 +2,8 @@
 
 namespace App\Controller;
 
+use App\Entity\Company;
+use Doctrine\ORM\EntityManagerInterface;
 use Masterminds\HTML5;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DomCrawler\Crawler;
@@ -9,6 +11,20 @@ use Symfony\Component\Routing\Annotation\Route;
 
 class CompanyController extends AbstractController
 {
+    /**
+     * @var EntityManagerInterface
+     */
+    private $em;
+
+    /**
+     * CompanyController constructor.
+     * @param EntityManagerInterface $em
+     */
+    public function __construct(EntityManagerInterface $em)
+    {
+        $this->em = $em;
+    }
+
     /**
      * @Route("/", name="company.list")
      */
@@ -24,9 +40,29 @@ class CompanyController extends AbstractController
      */
     public function scrape()
     {
-        $url = 'https://angel.co/companies';
+//        $url = 'https://angel.co/companies';
+//        $url = 'https://angel.co/';
+
         $page = $this->disguise_curl($url);
+        $html5 =new HTML5();
+        $dom = $html5->loadHTML($page);
+
+        $xpath = new \DOMXPath($dom);
+        $elements = $xpath->query('//*[@class="results"]');
+
+        $arr = [];
+        if (!is_null($elements)) {
+            foreach ($elements as $element) {
+                $nodes = $element->childNodes;
+                foreach ($nodes as $node) {
+                    $arr[] = $node->nodeValue;
+                }
+            }
+        }
+        $this->save($arr);
         dump($page);
+//        dump($dom);
+//        dump($arr);
         die();
 //        $user_agent = 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.121 Safari/537.36';
 //        $options = array(
@@ -138,36 +174,89 @@ class CompanyController extends AbstractController
     {
         $user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36';
         $curl = curl_init();
-        $header[] = ":authority: angel.co";
-        $header[] = ":method: GET";
-        $header[] = ":path: /companies";
-        $header[] = ":scheme: https";
+//        $proxy = '177.125.20.35:40744';
+//        $proxy = '113.160.206.37:37194';
+//        $proxy = '113.252.95.19:8197';
+//        $proxy = '103.86.135.62:59538';
+//        $proxy = '109.172.57.250:23500';
+//        $proxy = '94.127.144.179:33905';
+//        $proxy = '82.200.233.4:3128';
+//        $proxy = '27.116.51.119:8080';
+//        $proxy = '88.99.10.249';
+//        $proxy = '103.79.235.160';
+//        $proxy = '103.250.156.22';
+//        $proxy = '195.214.222.75';
+//        $proxy = '31.154.189.211';
+//        $proxy = '124.41.240.126';
+//        $proxy = '91.67.240.32';
+//        $proxy = '185.44.229.227';
+//        $proxy = '92.33.17.248';
+//        $proxy = '80.106.247.145';
+        $proxy = '79.135.240.254';
+
+//        $header[] = ":authority: angel.co";
+//        $header[] = ":method: GET";
+//        $header[] = ":path: /companies";
+//        $header[] = ":path: /";
+//        $header[] = ":scheme: https";
         $header[] = "accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9";
-        $header[] = "accept-encoding: gzip, deflate";
-        $header[] = "accept-language: en-US,en;q=0.9,ky;q=0.8";
+//        $header[] = "accept-encoding: gzip, deflate";
+        $header[] = "accept-language: en-US,en;q=0.9";
         $header[] = "cache-control: max-age=0";
-        $header[] = "cookie: _angellist=e1ce62dd3d7b6dc5b3fc70edfe0e314c; _ga=GA1.2.1687189962.1585124251; _gid=GA1.2.141327994.1585124251; _fbp=fb.1.1585124251060.333499133; ajs_user_id=null; ajs_group_id=null; ajs_anonymous_id=%22e1ce62dd3d7b6dc5b3fc70edfe0e314c%22; _hjid=7d511e76-67ea-4cf3-833d-729e17833c8f; _hjIncludedInSample=1; amplitude_idundefinedangel.co=eyJvcHRPdXQiOmZhbHNlLCJzZXNzaW9uSWQiOm51bGwsImxhc3RFdmVudFRpbWUiOm51bGwsImV2ZW50SWQiOjAsImlkZW50aWZ5SWQiOjAsInNlcXVlbmNlTnVtYmVyIjowfQ==; amplitude_id_add5896bb4e577b77205df2195a968f6angel.co=eyJkZXZpY2VJZCI6IjEzNzY3NmEwLWE4MjAtNDFkNy05ZWY5LThlODlhMjJlZTVmMlIiLCJ1c2VySWQiOm51bGwsIm9wdE91dCI6ZmFsc2UsInNlc3Npb25JZCI6MTU4NTIzMTk4MjI5NiwibGFzdEV2ZW50VGltZSI6MTU4NTIzMjE3MjE3MiwiZXZlbnRJZCI6MSwiaWRlbnRpZnlJZCI6MCwic2VxdWVuY2VOdW1iZXIiOjF9; __cfduid=da941b8df211c823313bf33a6164509281585232182; __cf_bm=6c31d13e1729840514dcfe2e2237581f9c065673-1585238040-1800-AWfYy+OgDnLHzIWuOMCQ9BlvZOKBJ4DXW5JxXqAHcYKZC05ubPRZqAtdnbhvV7cttpVGUhg+dZ14wF/sOzXd+U4=";
+//        $header[] = "cookie: __cfduid=dd8e30081b217b758111fe8abbbcb33251585300634; _angellist=4e96ced5280b0392e0c5e2a90d832928; __cf_bm=ab3d5f6874f117c3a94f286841cce40456b1a2b5-1585300634-1800-ARuroRuaYZcsjFZ+z6wZwIf3OMBRQJueJZEOabfSIhO1J6sbf7FTl8+sXHmqoViYYjR6y/vL7JiVtPzjcyDzqaQ=";
         $header[] = "sec-fetch-dest: document";
         $header[] = "sec-fetch-mode: navigate";
         $header[] = "sec-fetch-site: same-origin";
         $header[] = "sec-fetch-user: ?1";
         $header[] = "upgrade-insecure-requests: 1";
-        curl_setopt($curl, CURLOPT_URL, $url);
-        curl_setopt($curl, CURLOPT_USERAGENT, $user_agent);
+//        $header[] = "user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36";
+        curl_setopt($curl, CURLOPT_PROXY, $proxy);
+        curl_setopt($curl, CURLOPT_PROXYPORT, "47731");
+//        curl_setopt($curl, CURLOPT_HEADER, FALSE);
         curl_setopt($curl, CURLOPT_HTTPHEADER, $header);
-        curl_setopt($curl, CURLOPT_ENCODING, 'gzip, deflate');
-        curl_setopt($curl, CURLOPT_AUTOREFERER, true);
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($curl, CURLOPT_TIMEOUT, 10);
+
+        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, FALSE);
+
+        curl_setopt($curl, CURLOPT_COOKIESESSION, TRUE);
+        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, TRUE);
+
+//        curl_setopt($curl, CURLOPT_ENCODING, 'gzip, deflate');
+//        curl_setopt($curl, CURLOPT_AUTOREFERER, true);
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+
+        curl_setopt($curl, CURLOPT_TIMEOUT, 30);
+
+        curl_setopt($curl, CURLOPT_USERAGENT, $user_agent);
+
+        curl_setopt($curl, CURLOPT_URL, $url);
+
         $html = curl_exec($curl);
         if (!$html)
         {
-            echo "cURL error number:" .curl_errno($curl);
-            echo "cURL error:" . curl_error($curl);
+            echo "cURL error number:" .curl_errno($curl) . "<br>";
+            echo "cURL error:" . curl_error($curl) . "<br>";
             exit;
         }
 
         curl_close($curl);
         return $html;
+    }
+
+    public function save($array)
+    {
+        foreach ($array as $data) {
+            $company = new Company();
+            $company->setName($data['name']);
+            $company->setLocation($data['location']);
+            $company->setMarket($data['market']);
+            $company->setWebsite($data['website']);
+            $company->setEmployees($data['employees']);
+            $company->setStage($data['stage']);
+            $company->setRaised($data['raised']);
+
+            $this->em->persist($company);
+            $this->em->flush();
+        }
+
     }
 }
