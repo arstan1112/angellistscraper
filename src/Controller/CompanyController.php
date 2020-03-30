@@ -3,10 +3,14 @@
 namespace App\Controller;
 
 use App\Entity\Company;
+use CloudflareBypass\CFCurlImpl;
+use CloudflareBypass\Model\UAMOptions;
 use Doctrine\ORM\EntityManagerInterface;
 use Masterminds\HTML5;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DomCrawler\Crawler;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 
 class CompanyController extends AbstractController
@@ -27,11 +31,22 @@ class CompanyController extends AbstractController
 
     /**
      * @Route("/", name="company.list")
+     * @param Request $request
+     * @return \Symfony\Component\HttpFoundation\Response
      */
-    public function index()
+    public function index(Request $request)
     {
+//        dump($request);
+//        return new Response(var_dump($request->getSession()));
+//        dump($request->getContent());
+//        die();
         return $this->render('company/index.html.twig', [
-            'controller_name' => 'CompanyController',
+//            'controller_name' => 'CompanyController',
+//            'request' => dump($request->request),
+//            'request' => dump($request),
+            'request' => $request,
+//            'request' => var_dump($request->request),
+//            'request' => print_r($request->request),
         ]);
     }
 
@@ -40,30 +55,155 @@ class CompanyController extends AbstractController
      */
     public function scrape()
     {
+        //        $myip = '185.66.252.188';
+
 //        $url = 'https://angel.co/companies';
 //        $url = 'https://angel.co/';
+        $url = 'http://www.angellist.loc/';
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        //        $url = 'http://www.angellist.loc/';
+//        $url = 'https://whatismyipaddress.com/';
+
+//        $url = 'https://104.18.24.39:443/';
+//        $url = 'https://104.18.24.39/index.php';
+//        $url = 'https://104.18.24.39/'; //angel.co
+//        $url = 'https://104.16.155.36/'; //whatismyipaddress.com
+
+
+//        $client = \Symfony\Component\Panther\Client::createChromeClient();
+//        $client = \Symfony\Component\Panther\Client::createChromeClient(null, [
+//            '--window-size=1200,1100',
+//            '--proxy-server=http://134.209.101.192:8080',
+////            "--proxy-server=socks://103.141.108.161:3127",
+//            '--headless',
+//            '--disable-gpu',
+//        ], [
+//            'connection_timeout_in_ms'=>null,
+//            'request_timeout_in_ms'=>60000,
+//        ]);
+
+//        $crawler = $client->request('GET', $url);
+//        $page = $crawler->html();
+//        $client->close();
 
         $page = $this->disguise_curl($url);
+//
         $html5 =new HTML5();
         $dom = $html5->loadHTML($page);
 
-        $xpath = new \DOMXPath($dom);
-        $elements = $xpath->query('//*[@class="results"]');
+//        $dom = new \DOMDocument();
+//        $dom->loadHTML($page);
 
-        $arr = [];
-        if (!is_null($elements)) {
-            foreach ($elements as $element) {
-                $nodes = $element->childNodes;
-                foreach ($nodes as $node) {
-                    $arr[] = $node->nodeValue;
-                }
-            }
+////
+        $xpath = new \DOMXPath($dom);
+//        $xpath = new \DOMXPath($page);
+//        $elements = $xpath->query('//*[@id="ipv4"]');
+//        $elements = $xpath->query('/html/body/div[1]/div[4]/div[2]/div/div[2]/div[2]/div[2]');
+//        $elements = $xpath->query('//*[@id="root"]/div[4]/div[2]/div/div[2]/div[2]/div[2]');
+//        $elements = $xpath->query('//*[@class="results"]');
+        $elements = $xpath->query('//*[@class="base startup"]');
+//        $elements = $xpath->query('//*[@class="content"]');
+//        $elements = $xpath->query('//*[@class="main_container"]');
+//        $elements = $xpath->query('//*[@class="results"]/div[@class=" dc59 frw44 _a _jm"]');
+//        $elements = $xpath->query('//*[@class="results"]/div[0]');
+//        $elements = $xpath->query('//*[@id="root"]/div[4]/div[2]/div/div[2]/div[2]/div[2]/div[2]/div');
+
+        $array_company_names = [];
+        $array_company_locations = [];
+        foreach ($elements as $element) {
+            $nodes = $element->getElementsByTagName('div');
+
+            //get company name
+            $div_company_column = $nodes[0]->getElementsByTagName('div');
+            $div_g_lockup       = $div_company_column[0]->getElementsByTagName('div');
+            $div_text           = $div_g_lockup[1]->getElementsByTagName('div');
+            $array_company_names[] = preg_replace("/[^A-Za-z0-9]/", '', $div_text[0]->nodeValue);
+
+            //get company location
+            $div_column_location = $nodes[14]->getElementsByTagName('div');
+            $location_name = $div_column_location[0]->nodeValue;
+            $array_company_locations[] = $location_name;
+//            $div_column_location = $nodes[14]->getElementsByTagName('div');
+//            $location_name = $div_column_location[0]->nodeValue;
+//            $array_company_locations[] = $location_name;
+//            $array_company_locations[] = preg_replace("/[^A-Za-z0-9]/", '', $div_column_location[0]->nodeValue);
+
         }
-        $this->save($arr);
-        dump($page);
+
+//        $nodes = $elements[0]->getElementsByTagName('div');
+//        $div_column_location = $nodes[14]->getElementsByTagName('div');
+//        $location_name = $div_column_location[0]->nodeValue;
+//        $array_company_locations[] = $location_name;
+
+//        dump($location_name);
+//        die();
+//        $div_value = $div_column_location[0]->getElementsByTagName('div');
+//        dump($div_value);
+//        die();
+//        $array_company_locations[] = preg_replace("/[^A-Za-z0-9]/", '', $div_value->nodeValue);
+
+
+//        $nodes = $elements[0]->getElementsByTagName('div');
+//        $childnode1 = $nodes[0]->getElementsByTagName('div');
+//        $childnode2 = $childnode1[0]->getElementsByTagName('div');
+//        $childnode3 = $childnode2[1]->getElementsByTagName('div');
+//        $string = $childnode3[0]->nodeValue;
+//        $string = preg_replace("/[^A-Za-z0-9]/", '', $string);
+//        dump($string);
+//        dump($array_company_names);
+        dump($array_company_locations);
+        die();
+
+//        foreach ($nodes as $node) {
+//            $arr[] = $node->nodeValue;
+//        }
+//
+////        foreach ($nodes as $node) {
+//            $count = 1;
+//            foreach ($xpath->query('//*[@class="base startup"]', $nodes[0]) as $child) {
+////            foreach ($xpath->query('//*[@class="company column"]', $nodes[0]) as $child) {
+////            foreach ($xpath->query('//*[@class="name"]', $nodes[0]) as $child) {
+//                echo $count. " " .$child->nodeValue . "<br>";
+////                echo $child->nodeValue, PHP_EOL;
+////                dump($child->nodeValue, PHP_EOL);
+////                $array[] = $child->nodeValue;
+//                $count++;
+//            }
+////        }
+//
+////        dump($arr);
+//        die();
+//
+////        dump($elements);
+////        die();
+//
+//        $arr = [];
+//        if (!is_null($elements)) {
+//            foreach ($elements as $element) {
+//                $nodes = $element->childNodes;
+////                $arr[] = $nodes->nodeValue;
+////                dump($nodes);
+//                foreach ($nodes as $node) {
+//                    $arr[] = $node->nodeValue;
+////                    $child = $node->childNodes;
+////                    foreach ($child as $ch) {
+////                        $arr[] = $ch->nodeValue;
+////                    }
+//                }
+//            }
+//        }
+
+//        $this->save($arr);
+//        echo $page;
+//        foreach ($arr as $ar) {
+//            echo $ar .'<br>';
+//            print_r($ar);
+//            echo '<br>';
+//        }
+//        print_r($arr[1]);
+//        dump($page);
 //        dump($dom);
 //        dump($arr);
-        die();
+//        die();
 //        $user_agent = 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.121 Safari/537.36';
 //        $options = array(
 //            CURLOPT_CUSTOMREQUEST  =>"GET",        //set request type post or get
@@ -140,7 +280,6 @@ class CompanyController extends AbstractController
 ////        dump($arr);
 ////        die();
 //
-//
 //        if (!empty($curl)){
 //
 //            $html5 =new HTML5();
@@ -170,65 +309,62 @@ class CompanyController extends AbstractController
 
     }
 
-    function disguise_curl($url)
+    protected function disguise_curl($url)
     {
-        $user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36';
+//        $curl = curl_init($url);
         $curl = curl_init();
-//        $proxy = '177.125.20.35:40744';
-//        $proxy = '113.160.206.37:37194';
-//        $proxy = '113.252.95.19:8197';
-//        $proxy = '103.86.135.62:59538';
-//        $proxy = '109.172.57.250:23500';
-//        $proxy = '94.127.144.179:33905';
-//        $proxy = '82.200.233.4:3128';
-//        $proxy = '27.116.51.119:8080';
-//        $proxy = '88.99.10.249';
-//        $proxy = '103.79.235.160';
-//        $proxy = '103.250.156.22';
-//        $proxy = '195.214.222.75';
-//        $proxy = '31.154.189.211';
-//        $proxy = '124.41.240.126';
-//        $proxy = '91.67.240.32';
-//        $proxy = '185.44.229.227';
-//        $proxy = '92.33.17.248';
-//        $proxy = '80.106.247.145';
-        $proxy = '79.135.240.254';
 
-//        $header[] = ":authority: angel.co";
-//        $header[] = ":method: GET";
-//        $header[] = ":path: /companies";
-//        $header[] = ":path: /";
-//        $header[] = ":scheme: https";
-        $header[] = "accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9";
-//        $header[] = "accept-encoding: gzip, deflate";
-        $header[] = "accept-language: en-US,en;q=0.9";
-        $header[] = "cache-control: max-age=0";
-//        $header[] = "cookie: __cfduid=dd8e30081b217b758111fe8abbbcb33251585300634; _angellist=4e96ced5280b0392e0c5e2a90d832928; __cf_bm=ab3d5f6874f117c3a94f286841cce40456b1a2b5-1585300634-1800-ARuroRuaYZcsjFZ+z6wZwIf3OMBRQJueJZEOabfSIhO1J6sbf7FTl8+sXHmqoViYYjR6y/vL7JiVtPzjcyDzqaQ=";
-        $header[] = "sec-fetch-dest: document";
-        $header[] = "sec-fetch-mode: navigate";
-        $header[] = "sec-fetch-site: same-origin";
-        $header[] = "sec-fetch-user: ?1";
-        $header[] = "upgrade-insecure-requests: 1";
-//        $header[] = "user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36";
-        curl_setopt($curl, CURLOPT_PROXY, $proxy);
-        curl_setopt($curl, CURLOPT_PROXYPORT, "47731");
+//        $proxy = '103.217.90.129';
+//        $proxy = '5.172.2.240';
+//        $proxy = '103.43.7.93';
+//        $proxy = '123.231.226.114';
+        $proxy = '217.146.219.118';
+//        $port = '44005';
+//        $port = '42088';
+//        $port = '30004';
+//        $port = '8080';
+        $port = '39331';
+        $user_agent = 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36';
+
+//        $header[] = ':authority: angel.co';
+//        $header[] = ':method: GET';
+//        $header[] = ':path: /companies';
+//        $header[] = ':path: /';
+//        $header[] = ':scheme: https';
+        $header[] = 'accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9';
+        $header[] = 'accept-encoding: gzip, deflate';
+//        $header[] = 'accept-language: en-US,en;q=0.9,ky;q=0.8';
+        $header[] = 'accept-language: en-US,en;q=0.9';
+        $header[] = 'cache-control: max-age=0';
+        $header[] = 'connection: keep-alive';
+//        $header[] = 'referer: https://www.google.com/';
+//        $header[] = 'sec-fetch-dest: document';
+//        $header[] = 'sec-fetch-mode: navigate';
+//        $header[] = 'sec-fetch-site: cross-site';
+//        $header[] = 'sec-fetch-user: ?1';
+        $header[] = 'upgrade-insecure-requests: 1';
+        $header[] = 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36';
+
+//        curl_setopt($curl, CURLOPT_PROXY, $proxy);
+//        curl_setopt($curl, CURLOPT_PROXYPORT, $port);
 //        curl_setopt($curl, CURLOPT_HEADER, FALSE);
         curl_setopt($curl, CURLOPT_HTTPHEADER, $header);
 
         curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, FALSE);
 
+//        curl_setopt($curl, CURLOPT_SSLVERSION, 3);
+        curl_setopt($curl, CURLOPT_SSL_CIPHER_LIST, 'TLSv1');
+
+        curl_setopt($curl, CURLOPT_ENCODING, "UTF-8" );
         curl_setopt($curl, CURLOPT_COOKIESESSION, TRUE);
         curl_setopt($curl, CURLOPT_FOLLOWLOCATION, TRUE);
 
-//        curl_setopt($curl, CURLOPT_ENCODING, 'gzip, deflate');
 //        curl_setopt($curl, CURLOPT_AUTOREFERER, true);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-
         curl_setopt($curl, CURLOPT_TIMEOUT, 30);
 
-        curl_setopt($curl, CURLOPT_USERAGENT, $user_agent);
-
         curl_setopt($curl, CURLOPT_URL, $url);
+
 
         $html = curl_exec($curl);
         if (!$html)
@@ -237,8 +373,27 @@ class CompanyController extends AbstractController
             echo "cURL error:" . curl_error($curl) . "<br>";
             exit;
         }
-
         curl_close($curl);
+
+
+//        curl_setopt($curl, CURLINFO_HEADER_OUT, true);
+////        curl_setopt($curl, CURLOPT_HTTPHEADER,
+////            array(
+////                "upgrade-Insecure-Requests: 1",
+////                "user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36",
+////                "accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
+////                "accept-Language: en-US,en;q=0.9"
+////            ));
+//        $cfCurl = new CFCurlImpl();
+//        $cfOptions = new UAMOptions();
+//        $cfOptions->setVerbose(true);
+//
+//        try {
+//            $html = $cfCurl->exec($curl, $cfOptions);
+//        } catch (\ErrorException $ex) {
+//            return "Unknown error ->" .$ex->getMessage();
+//        }
+
         return $html;
     }
 
