@@ -12,6 +12,9 @@ use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Serializer\Encoder\JsonEncoder;
+use Symfony\Component\Serializer\Normalizer\ObjectNormalizer;
+use Symfony\Component\Serializer\Serializer;
 
 class CompanyController extends AbstractController
 {
@@ -32,12 +35,34 @@ class CompanyController extends AbstractController
     /**
      * @Route("/", name="company.list")
      * @param Request $request
-     * @return \Symfony\Component\HttpFoundation\Response
+     * @return Response
      */
     public function index(Request $request)
     {
         return $this->render('company/index.html.twig', [
             'request' => $request,
+        ]);
+    }
+
+    /**
+     * @Route("/api/values", name="company.api.values")
+     * @return Response
+     */
+    public function getValues()
+    {
+        return $this->render('company/values.html.twig', [
+            'data' => 'values',
+        ]);
+    }
+
+    /**
+     * @Route("/api/keys", name="company.api.keys")
+     * @return Response
+     */
+    public function getKeys()
+    {
+        return $this->render('company/keys.html.twig', [
+            'data' => 'keys',
         ]);
     }
 
@@ -48,12 +73,19 @@ class CompanyController extends AbstractController
      */
     public function scrape()
     {
-        $url = 'http://www.angellist.loc/';
+        $url_keys = 'http://www.angellist.loc/api/keys';
+        $url_values = 'http://www.angellist.loc/api/values';
 
-        $page = $this->disguise_curl($url);
+        $page = $this->disguise_curl($url_values);
 
-        $html5 =new HTML5();
-        $dom = $html5->loadHTML($page);
+        $normalizer = new ObjectNormalizer();
+        $encoder = new JsonEncoder();
+        $serializer = new Serializer([$normalizer], [$encoder]);
+        $page = $serializer->decode($page, 'json');
+        $html = $page['html'];
+
+        $dom = new \DOMDocument();
+        $dom->loadHTML($html);
 
         $xpath = new \DOMXPath($dom);
         $elements = $xpath->query('//*[@class="results"]');
@@ -66,7 +98,7 @@ class CompanyController extends AbstractController
                 foreach ($nodes as $node) {
                     $node = $node->nodeValue;
                     $node = preg_replace("/[^A-Za-z0-9@.\- ]/", '', $node);
-                    $delimiters = [' Signal ', ' Joined ', ' Location ', ' Market ', ' Website ', ' Stage ', ' Employees ', ' Total Raised '];
+                    $delimiters = ['Signal', 'Joined', 'Location', 'Market', 'Website', 'Stage', 'Employees', 'Total Raised'];
                     $node = $this->multiexplode($delimiters, $node);
                     $keys = ['Name', 'Signal', 'Joined', 'Location', 'Market', 'Website', 'Employees', 'Stage', 'Total Raised'];
                     if (count($node)==9) {
@@ -81,8 +113,9 @@ class CompanyController extends AbstractController
                     }
 
                     $node = array_filter(array_map('trim', $node));
+
                     if (isset($node['Name'])) {
-                        $node['Name'] = explode('     ', $node['Name']);
+                        $node['Name'] = explode('  ', $node['Name']);
                         $shift = array_shift($node['Name']);
                         if (is_array($node['Name'])) {
                             $node['Name'] = implode('', $node['Name']);
@@ -90,6 +123,7 @@ class CompanyController extends AbstractController
                         $node['Description'] = $node['Name'];
                         $node['Name'] = $shift;
                     }
+
                     $node = preg_replace('/\s+/', ' ', $node);
                     if ($node) {
                         $arr[] = $node;
@@ -102,12 +136,11 @@ class CompanyController extends AbstractController
         array_pop($arr);
 
         foreach ($arr as $ar) {
-            $this->save($ar);
+            dump($ar);
         }
 
-        dump($empty);
+        die();
 
-        return null;
     }
 
     /**
