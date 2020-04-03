@@ -24,6 +24,26 @@ class ScrapeCommand extends Command
     private $em;
 
     /**
+     * @var ObjectNormalizer
+     */
+    private $normalizer;
+
+    /**
+     * @var JsonEncoder
+     */
+    private $encoder;
+
+    /**
+     * @var Serializer
+     */
+    private $serializer;
+
+    /**
+     * @var array
+     */
+    private $header;
+
+    /**
      * ScrapeCommand constructor.
      * @param EntityManagerInterface $entityManager
      * @param string|null $name
@@ -31,7 +51,19 @@ class ScrapeCommand extends Command
     public function __construct(EntityManagerInterface $entityManager, string $name = null)
     {
         parent::__construct($name);
+
         $this->em = $entityManager;
+        $this->normalizer = new ObjectNormalizer();
+        $this->encoder    = new JsonEncoder();
+        $this->serializer = new Serializer([$this->normalizer], [$this->encoder]);
+
+        $this->header[] = 'accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9';
+        $this->header[] = 'accept-encoding: gzip, deflate';
+        $this->header[] = 'accept-language: en-US,en;q=0.9';
+        $this->header[] = 'cache-control: max-age=0';
+        $this->header[] = 'connection: keep-alive';
+        $this->header[] = 'upgrade-insecure-requests: 1';
+        $this->header[] = 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36';
     }
 
     /**
@@ -40,10 +72,10 @@ class ScrapeCommand extends Command
     protected function configure()
     {
         $this
-            ->setDescription('Scrape angel.co')
+            ->setDescription('Scrape angel.co. First argument - proxy address, second argument - proxy port number')
             ->addArgument('proxy', InputArgument::OPTIONAL, 'Proxy address')
             ->addArgument('port', InputArgument::OPTIONAL, 'Proxy port')
-            ->addOption('option1', null, InputOption::VALUE_NONE, 'Option description')
+//            ->addOption('option1', null, InputOption::VALUE_NONE, 'Option description')
         ;
     }
 
@@ -56,24 +88,111 @@ class ScrapeCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
 
-        $url_keys = 'http://www.angellist.loc/api/keys';
+        $url_keys   = 'http://www.angellist.loc/api/keys';
         $url_values = 'http://www.angellist.loc/api/values';
+        $parameters_for_keys = 'sort=signal&page=2';
+        $response_counter = 0;
 
-        try {
-            $page = $this->disguise_curl($url_values, $input->getArgument('proxy'), $input->getArgument('port'));
-        } catch (\Throwable $exception) {
-            $io->error('Command while connection failed with exception: ' .$exception->getMessage());
+        do {
+            try {
+                $query_type = 'getKey';
+                $keys = $this->curlInit($url_keys, $parameters_for_keys, $query_type, $input->getArgument('proxy'), $input->getArgument('port'));
+            } catch (\Throwable $exception) {
+                $io->error('Command failed while getting keys with exception: ' .$exception->getMessage());
+                exit();
+            }
+            $decoded = json_decode($keys);
+            if (isset($decoded->hexdigest)) {
+                $parameters_for_keys = 'sort='.$decoded->sort.'&page='.$decoded->page;
+            } else {
+                $io->error('Command failed while getting key: hexdigest key was not found in the response');
+                exit();
+            }
+
+            $parameters_for_values = $keys;
+            try {
+                $query_type = 'getVal';
+                $page = $this->curlInit($url_values, $parameters_for_values, $query_type, $input->getArgument('proxy'), $input->getArgument('port'));
+            } catch (\Throwable $exception) {
+                $io->error('Command failed while getting values with exception: ' .$exception->getMessage());
+                exit();
+            }
+
+            $page = $this->serializer->decode($page, 'json');
+            $html = $page['html'];
+            try {
+                $arr = $this->parse($html);
+            } catch (\Throwable $exception) {
+                $io->error('Command failed while parsing with exception: ' .$exception->getMessage());
+                exit();
+            }
+            foreach ($arr as $ar) {
+                try {
+                    $this->save($ar);
+                } catch (\Throwable $exception) {
+                    $io->error('Command failed while saving with exception: ' . $exception->getMessage());
+                    exit();
+                }
+            }
+
+            $response_counter++;
+
+        } while ($response_counter<3);
+
+        $io->success('Command Scrape successfully finished');
+
+        return 0;
+    }
+
+    /**
+     * @param string $url
+     * @param null|string $type
+     * @param null|string $parameters
+     * @param null|string $proxy
+     * @param null|string $port
+     * @return bool|string
+     * @throws \ErrorException
+     */
+    private function curlInit($url, $parameters=null, $type=null, $proxy=null, $port=null)
+    {
+        $curl = curl_init();
+
+        if (isset($proxy) && isset($port)) {
+            curl_setopt($curl, CURLOPT_PROXY, $proxy);
+            curl_setopt($curl, CURLOPT_PROXYPORT, $port);
         }
+        curl_setopt($curl, CURLOPT_HTTPHEADER, $this->header);
+        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, FALSE);
+        curl_setopt($curl, CURLOPT_SSL_CIPHER_LIST, 'TLSv1');
+        curl_setopt($curl, CURLOPT_ENCODING, "UTF-8" );
+        curl_setopt($curl, CURLOPT_COOKIESESSION, TRUE);
+        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, TRUE);
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($curl, CURLOPT_TIMEOUT, 50);
+        if ($type=='getVal') {
+            curl_setopt($curl, CURLOPT_POST, 1);
+        }
+        curl_setopt($curl, CURLOPT_POSTFIELDS, $parameters);
+        curl_setopt($curl, CURLOPT_URL, $url);
 
-        $normalizer = new ObjectNormalizer();
-        $encoder = new JsonEncoder();
-        $serializer = new Serializer([$normalizer], [$encoder]);
-        $page = $serializer->decode($page, 'json');
-        $html = $page['html'];
+        $html = curl_exec($curl);
+        if (!$html)
+        {
+            throw new \ErrorException('Error number: ' .curl_errno($curl). ' Error message: ' .curl_error($curl));
+        }
+        curl_close($curl);
 
-        $dom = new \DOMDocument();
+        return $html;
+    }
+
+    /**
+     * @param string $html
+     * @return array
+     */
+    private function parse($html)
+    {
+        $dom   = new \DOMDocument();
         $dom->loadHTML($html);
-
         $xpath = new \DOMXPath($dom);
         $elements = $xpath->query('//*[@class="base startup"]');
 
@@ -93,14 +212,15 @@ class ScrapeCommand extends Command
                 $node_imploded = implode('', $arr_base_startup);
                 $delimiters = ['Signal', 'Joined', 'Location', 'Market', 'Website', 'Stage', 'Employees', 'Total Raised'];
                 $node = $this->multiexplode($delimiters, $node_imploded);
+
                 $keys = ['Name', 'Signal', 'Joined', 'Location', 'Market', 'Website', 'Employees', 'Stage', 'Total Raised'];
 
                 if (count($node)==9) {
                     $normal[] = $node;
                     $node = array_combine($keys, $node);
-                    $name = $xpath->query('//*[@class="name"]');
+                    $name        = $xpath->query('//*[@class="name"]');
                     $description = $xpath->query('//*[@class="pitch"]');
-                    $node['Name'] = $this->getNodeValue($name, $counter);
+                    $node['Name']        = $this->getNodeValue($name, $counter);
                     $node['Description'] = $this->getNodeValue($description, $counter);
                     if ($node) {
                         $arr[] = $node;
@@ -108,29 +228,7 @@ class ScrapeCommand extends Command
 
                 } elseif (count($node)!==9) {
                     $anomaly[] = $node;
-                    $name = $xpath->query('//*[@class="name"]');
-                    $description = $xpath->query('//*[@class="pitch"]');
-                    $joined = $xpath->query('//*[@data-column="joined"]');
-                    $location = $xpath->query('//*[@data-column="location"]');
-                    $market = $xpath->query('//*[@data-column="market"]');
-                    $website = $xpath->query('//*[@data-column="website"]');
-                    $employees = $xpath->query('//*[@data-column="company_size"]');
-                    $stage = $xpath->query('//*[@data-column="stage"]');
-                    $raised = $xpath->query('//*[@data-column="raised"]');
-
-                    $nodeXpath['Name'] = $this->getNodeValue($name, $counter);
-                    $nodeXpath['Description'] = $this->getNodeValue($description, $counter);
-                    $nodeXpath['Joined'] = $this->getNodeValue($joined, $counter);
-                    $nodeXpath['Location'] = $this->getNodeValue($location, $counter);
-                    $nodeXpath['Market'] = $this->getNodeValue($market, $counter);
-                    $nodeXpath['Website'] = $this->getNodeValue($website, $counter);
-                    $nodeXpath['Employees'] = $this->getNodeValue($employees, $counter);
-                    $nodeXpath['Stage'] = $this->getNodeValue($stage, $counter);
-                    $nodeXpath['Total Raised'] = $this->getNodeValue($raised, $counter);
-
-                    if ($nodeXpath) {
-                        $arr[] = $nodeXpath;
-                    }
+                    $arr = $this->parseWithOnlyXpath($html, $arr, $counter);
                 }
                 $counter++;
             }
@@ -141,99 +239,46 @@ class ScrapeCommand extends Command
             array_pop($arr);
         }
 
-        foreach ($arr as $ar) {
-            try {
-                $this->save($ar);
-            } catch (\Throwable $exception) {
-                $io->error('Command while saving failed with exception: ' . $exception->getMessage());
-            }
-        }
-        dump($input->getArgument('proxy'));
-        dump($input->getArgument('port'));
-
-
-        $io->success('Command Scrape successfully finished');
-
-        return 0;
+        return $arr;
     }
 
     /**
-     * @param string $url
-     * @param null|string $proxy
-     * @param null|string $port
-     * @return bool|string
-     */
-    private function disguise_curl($url, $proxy=null, $port=null)
-    {
-        $curl = curl_init();
-
-        $header[] = 'accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9';
-        $header[] = 'accept-encoding: gzip, deflate';
-        $header[] = 'accept-language: en-US,en;q=0.9';
-        $header[] = 'cache-control: max-age=0';
-        $header[] = 'connection: keep-alive';
-        $header[] = 'upgrade-insecure-requests: 1';
-        $header[] = 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36';
-
-        if (isset($proxy)) {
-            curl_setopt($curl, CURLOPT_PROXY, $proxy);
-            curl_setopt($curl, CURLOPT_PROXYPORT, $port);
-        }
-        curl_setopt($curl, CURLOPT_HTTPHEADER, $header);
-        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, FALSE);
-        curl_setopt($curl, CURLOPT_SSL_CIPHER_LIST, 'TLSv1');
-        curl_setopt($curl, CURLOPT_ENCODING, "UTF-8" );
-        curl_setopt($curl, CURLOPT_COOKIESESSION, TRUE);
-        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, TRUE);
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($curl, CURLOPT_TIMEOUT, 30);
-        curl_setopt($curl, CURLOPT_URL, $url);
-
-        $html = curl_exec($curl);
-        if (!$html)
-        {
-            echo "cURL error number:" .curl_errno($curl) . "<br>";
-            echo "cURL error:" . curl_error($curl) . "<br>";
-            exit;
-        }
-        curl_close($curl);
-
-        return $html;
-    }
-
-    /**
-     * @param array $delimiters
-     * @param string $string
+     * @param string $html
+     * @param array  $arr
+     * @param int    $counter
      * @return array
      */
-    private final function multiexplode($delimiters,$string)
+    private function parseWithOnlyXpath($html, $arr, $counter)
     {
-        $ready = str_replace($delimiters, $delimiters[0], $string);
-        $launch = explode($delimiters[0], $ready);
-        return  $launch;
-    }
+        $dom   = new \DOMDocument();
+        $dom->loadHTML($html);
+        $xpath = new \DOMXPath($dom);
 
-    /**
-     * @param object $node
-     * @param int $counter
-     * @return mixed
-     */
-    private function getNodeValue($node, $counter)
-    {
-        $value = [];
-        foreach ($node[$counter]->childNodes as $child) {
-            $val = str_replace(array("\n","\r"), '', $child->nodeValue);
-            if ($val) {
-                $value[] = $val;
-            }
-        }
-        if (count($value)>1) {
-            return $value[1];
+        $name        = $xpath->query('//*[@class="name"]');
+        $description = $xpath->query('//*[@class="pitch"]');
+        $joined      = $xpath->query('//*[@data-column="joined"]');
+        $location    = $xpath->query('//*[@data-column="location"]');
+        $market      = $xpath->query('//*[@data-column="market"]');
+        $website     = $xpath->query('//*[@data-column="website"]');
+        $employees   = $xpath->query('//*[@data-column="company_size"]');
+        $stage       = $xpath->query('//*[@data-column="stage"]');
+        $raised      = $xpath->query('//*[@data-column="raised"]');
+
+        $nodeXpath['Name']         = $this->getNodeValue($name, $counter);
+        $nodeXpath['Description']  = $this->getNodeValue($description, $counter);
+        $nodeXpath['Joined']       = $this->getNodeValue($joined, $counter);
+        $nodeXpath['Location']     = $this->getNodeValue($location, $counter);
+        $nodeXpath['Market']       = $this->getNodeValue($market, $counter);
+        $nodeXpath['Website']      = $this->getNodeValue($website, $counter);
+        $nodeXpath['Employees']    = $this->getNodeValue($employees, $counter);
+        $nodeXpath['Stage']        = $this->getNodeValue($stage, $counter);
+        $nodeXpath['Total Raised'] = $this->getNodeValue($raised, $counter);
+
+        if ($nodeXpath) {
+            $arr[] = $nodeXpath;
         }
 
-        if ($value) {
-            return $value[0];
-        }
+        return $arr;
     }
 
     /**
@@ -256,4 +301,39 @@ class ScrapeCommand extends Command
 
         return null;
     }
+
+    /**
+     * @param object $node
+     * @param int    $counter
+     * @return mixed
+     */
+    private function getNodeValue($node, $counter)
+    {
+        $value = [];
+        foreach ($node[$counter]->childNodes as $child) {
+            $val = str_replace(array("\n","\r"), '', $child->nodeValue);
+            if ($val) {
+                $value[] = $val;
+            }
+        }
+        if (count($value)>1) {
+            return $value[1];
+        }
+        if ($value) {
+            return $value[0];
+        }
+    }
+
+    /**
+     * @param array $delimiters
+     * @param string $string
+     * @return array
+     */
+    private final function multiexplode($delimiters,$string)
+    {
+        $ready = str_replace($delimiters, $delimiters[0], $string);
+        $launch = explode($delimiters[0], $ready);
+        return  $launch;
+    }
+
 }

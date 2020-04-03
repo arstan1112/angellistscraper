@@ -46,9 +46,10 @@ class CompanyController extends AbstractController
 
     /**
      * @Route("/api/values", name="company.api.values")
+     * @param Request $request
      * @return Response
      */
-    public function getValues()
+    public function getValues(Request $request)
     {
         return $this->render('company/values.html.twig', [
             'data' => 'values',
@@ -57,13 +58,21 @@ class CompanyController extends AbstractController
 
     /**
      * @Route("/api/keys", name="company.api.keys")
+     * @param Request $request
      * @return Response
      */
-    public function getKeys()
+    public function getKeys(Request $request)
     {
-        return $this->render('company/keys.html.twig', [
-            'data' => 'keys',
-        ]);
+
+        if ($request->get('sort')) {
+            return $this->render('company/keys.html.twig', [
+                'data' => 'keys',
+            ]);
+        } else {
+            return $this->json([
+                'status' => 'error',
+            ], 404);
+        }
     }
 
 }
