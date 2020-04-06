@@ -8,6 +8,7 @@ use CloudflareBypass\Model\UAMOptions;
 use Doctrine\ORM\EntityManagerInterface;
 use Masterminds\HTML5;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Config\Definition\Exception\Exception;
 use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -33,7 +34,7 @@ class CompanyController extends AbstractController
     }
 
     /**
-     * @Route("/", name="company.list")
+     * @Route("/", name="company.emulate")
      * @param Request $request
      * @return Response
      */
@@ -45,15 +46,35 @@ class CompanyController extends AbstractController
     }
 
     /**
+     * @Route("/list", name="company.list")
+     * @return Response
+     */
+    public function list()
+    {
+        $companies = $this->em->getRepository(Company::class)->findAll();
+        return $this->render('company/list.html.twig', [
+            'companies' => $companies,
+        ]);
+    }
+
+    /**
      * @Route("/api/values", name="company.api.values")
      * @param Request $request
      * @return Response
      */
     public function getValues(Request $request)
     {
-        return $this->render('company/values.html.twig', [
-            'data' => 'values',
-        ]);
+        $data = json_decode(file_get_contents('php://input'), true);
+
+        if ($data['hexdigest']=='9b92fafa1c1fa463c7d48c6ac41cb2896e3fbffb') {
+            return $this->render('company/values.html.twig', [
+                'data' => 'values',
+            ]);
+        } else {
+            return $this->json([
+                'status' => 'error',
+            ], 404);
+        }
     }
 
     /**
@@ -63,7 +84,6 @@ class CompanyController extends AbstractController
      */
     public function getKeys(Request $request)
     {
-
         if ($request->get('sort')) {
             return $this->render('company/keys.html.twig', [
                 'data' => 'keys',

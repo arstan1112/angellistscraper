@@ -4,6 +4,8 @@ namespace App\Command;
 
 use App\Entity\Company;
 use Doctrine\ORM\EntityManagerInterface;
+use phpDocumentor\Reflection\Types\Null_;
+use phpDocumentor\Reflection\Types\Nullable;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -75,7 +77,6 @@ class ScrapeCommand extends Command
             ->setDescription('Scrape angel.co. First argument - proxy address, second argument - proxy port number')
             ->addArgument('proxy', InputArgument::OPTIONAL, 'Proxy address')
             ->addArgument('port', InputArgument::OPTIONAL, 'Proxy port')
-//            ->addOption('option1', null, InputOption::VALUE_NONE, 'Option description')
         ;
     }
 
@@ -84,53 +85,33 @@ class ScrapeCommand extends Command
      * @param OutputInterface $output
      * @return int
      */
-    protected function execute(InputInterface $input, OutputInterface $output): int
+    protected function execute(InputInterface $input, OutputInterface $output) : int
     {
         $io = new SymfonyStyle($input, $output);
-
         $url_keys   = 'http://www.angellist.loc/api/keys';
         $url_values = 'http://www.angellist.loc/api/values';
         $parameters_for_keys = 'sort=signal&page=2';
         $response_counter = 0;
 
         do {
-            try {
-                $query_type = 'getKey';
-                $keys = $this->curlInit($url_keys, $parameters_for_keys, $query_type, $input->getArgument('proxy'), $input->getArgument('port'));
-            } catch (\Throwable $exception) {
-                $io->error('Command failed while getting keys with exception: ' .$exception->getMessage());
-                exit();
-            }
-            $decoded = json_decode($keys);
-            if (isset($decoded->hexdigest)) {
-                $parameters_for_keys = 'sort='.$decoded->sort.'&page='.$decoded->page;
-            } else {
-                $io->error('Command failed while getting key: hexdigest key was not found in the response');
-                exit();
-            }
+            $values = $this->getPageValues($io, $url_keys, $url_values, $parameters_for_keys, $input->getArgument('proxy'), $input->getArgument('port'));
 
-            $parameters_for_values = $keys;
-            try {
-                $query_type = 'getVal';
-                $page = $this->curlInit($url_values, $parameters_for_values, $query_type, $input->getArgument('proxy'), $input->getArgument('port'));
-            } catch (\Throwable $exception) {
-                $io->error('Command failed while getting values with exception: ' .$exception->getMessage());
-                exit();
-            }
+            $parameters_for_keys = $values[0];
 
-            $page = $this->serializer->decode($page, 'json');
-            $html = $page['html'];
+            $page = $this->serializer->decode($values[1], 'json');
+            isset($page['html']) ? $html = $page['html'] : $io->error('[Line'.__LINE__.'] Command failed while getting values: page not found or wrong parameters sent');
+
             try {
                 $arr = $this->parse($html);
             } catch (\Throwable $exception) {
-                $io->error('Command failed while parsing with exception: ' .$exception->getMessage());
+                $io->error('[Line'.__LINE__.'] Command failed while parsing with exception: ' .$exception->getMessage() . '. (Parameter keys: '.$parameters_for_keys .')');
                 exit();
             }
             foreach ($arr as $ar) {
                 try {
                     $this->save($ar);
                 } catch (\Throwable $exception) {
-                    $io->error('Command failed while saving with exception: ' . $exception->getMessage());
+                    $io->error('[Line'.__LINE__.'] Command failed while saving with exception: ' . $exception->getMessage(). '. (Parameter keys: '.$parameters_for_keys .')');
                     exit();
                 }
             }
@@ -145,11 +126,54 @@ class ScrapeCommand extends Command
     }
 
     /**
-     * @param string $url
-     * @param null|string $type
-     * @param null|string $parameters
+     * @param object $io
+     * @param string $url_keys
+     * @param string $url_values
+     * @param string $parameters_for_keys
      * @param null|string $proxy
      * @param null|string $port
+     * @return array
+     */
+    private function getPageValues($io, $url_keys, $url_values, $parameters_for_keys, $proxy=null, $port=null)
+    {
+        try {
+            $query_type = 'getKey';
+            $keys = $this->curlInit($url_keys, $parameters_for_keys, $query_type, $proxy, $port);
+        } catch (\Throwable $exception) {
+            $io->error('[Line'.__LINE__.']Command failed while getting keys with exception: ' .$exception->getMessage() . '. (Parameter keys: '.$parameters_for_keys .')');
+            exit();
+        }
+
+        $decoded = json_decode($keys);
+        if (isset($decoded->hexdigest)) {
+            $parameters_for_keys = 'sort='.$decoded->sort.'&page='.$decoded->page;
+        } else {
+            $io->error('[Line'.__LINE__.'] Command failed while getting key: wrong parameters sent or hexdigest key was not found in the response' . '. (Parameter keys: '.$parameters_for_keys .')');
+            exit();
+        }
+
+        $parameters_for_values = $keys;
+        try {
+            $query_type = 'getVal';
+            $page = $this->curlInit($url_values, $parameters_for_values, $query_type, $proxy, $port);
+        } catch (\Throwable $exception) {
+            $io->error('[Line'.__LINE__.'] Command failed while getting values with exception: ' .$exception->getMessage() . '. (Parameter keys: '.$parameters_for_keys .')');
+            exit();
+        }
+
+        $arr_values_and_parameters = [];
+        $arr_values_and_parameters[] = $parameters_for_keys;
+        $arr_values_and_parameters[] = $page;
+
+        return $arr_values_and_parameters;
+    }
+
+    /**
+     * @param string       $url
+     * @param null|string  $type
+     * @param array|string $parameters
+     * @param null|string  $proxy
+     * @param null|string  $port
      * @return bool|string
      * @throws \ErrorException
      */
@@ -197,8 +221,6 @@ class ScrapeCommand extends Command
         $elements = $xpath->query('//*[@class="base startup"]');
 
         $arr = [];
-        $normal = [];
-        $anomaly = [];
         $counter = 0;
         if (!is_null($elements)) {
             foreach ($elements as $element) {
@@ -216,7 +238,6 @@ class ScrapeCommand extends Command
                 $keys = ['Name', 'Signal', 'Joined', 'Location', 'Market', 'Website', 'Employees', 'Stage', 'Total Raised'];
 
                 if (count($node)==9) {
-                    $normal[] = $node;
                     $node = array_combine($keys, $node);
                     $name        = $xpath->query('//*[@class="name"]');
                     $description = $xpath->query('//*[@class="pitch"]');
@@ -227,7 +248,6 @@ class ScrapeCommand extends Command
                     }
 
                 } elseif (count($node)!==9) {
-                    $anomaly[] = $node;
                     $arr = $this->parseWithOnlyXpath($html, $arr, $counter);
                 }
                 $counter++;
@@ -333,6 +353,7 @@ class ScrapeCommand extends Command
     {
         $ready = str_replace($delimiters, $delimiters[0], $string);
         $launch = explode($delimiters[0], $ready);
+
         return  $launch;
     }
 
