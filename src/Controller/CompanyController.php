@@ -64,9 +64,11 @@ class CompanyController extends AbstractController
      */
     public function getValues(Request $request)
     {
-        $data = json_decode(file_get_contents('php://input'), true);
+        $uri = $request->getRequestUri();
+        $parts = parse_url($uri);
+        parse_str($parts['query'], $query);
 
-        if ($data['hexdigest']=='9b92fafa1c1fa463c7d48c6ac41cb2896e3fbffb') {
+        if ($query['hexdigest']=='9b92fafa1c1fa463c7d48c6ac41cb2896e3fbffb') {
             return $this->render('company/values.html.twig', [
                 'data' => 'values',
             ]);

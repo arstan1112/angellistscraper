@@ -136,6 +136,18 @@ class ScrapeCommand extends Command
      */
     private function getPageValues($io, $url_keys, $url_values, $parameters_for_keys, $proxy=null, $port=null)
     {
+        $filter_data = [
+            'filter_data[company_type][]' => 'Startup',
+            'filter_data[markets][]' => 'E-Commerce',
+            'filter_data[in_done_deals]' => 'Done deals',
+        ];
+
+        $main_parameters = [
+            'sort' => 'signal',
+            'page' => 2,
+        ];
+        $full_parameters = array_merge($filter_data, $main_parameters);
+
         try {
             $query_type = 'getKey';
             $keys = $this->curlInit($url_keys, $parameters_for_keys, $query_type, $proxy, $port);
@@ -148,14 +160,16 @@ class ScrapeCommand extends Command
         if (isset($decoded->hexdigest)) {
             $parameters_for_keys = 'sort='.$decoded->sort.'&page='.$decoded->page;
         } else {
-            $io->error('[Line'.__LINE__.'] Command failed while getting key: wrong parameters sent or hexdigest key was not found in the response' . '. (Parameter keys: '.$parameters_for_keys .')');
+            $io->error('[Line'.__LINE__.'] Command failed while getting keys: wrong parameters sent or hexdigest key was not found in the response' . '. (Parameter keys: '.$parameters_for_keys .')');
             exit();
         }
 
         $parameters_for_values = $keys;
+        $query_parameters = http_build_query(json_decode($parameters_for_values));
+        $full_url_values = $url_values.'?'.$query_parameters;
         try {
             $query_type = 'getVal';
-            $page = $this->curlInit($url_values, $parameters_for_values, $query_type, $proxy, $port);
+            $page = $this->curlInit($full_url_values, null, $query_type, $proxy, $port);
         } catch (\Throwable $exception) {
             $io->error('[Line'.__LINE__.'] Command failed while getting values with exception: ' .$exception->getMessage() . '. (Parameter keys: '.$parameters_for_keys .')');
             exit();
@@ -193,10 +207,10 @@ class ScrapeCommand extends Command
         curl_setopt($curl, CURLOPT_FOLLOWLOCATION, TRUE);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($curl, CURLOPT_TIMEOUT, 50);
-        if ($type=='getVal') {
+        if ($type=='getKey') {
             curl_setopt($curl, CURLOPT_POST, 1);
+            curl_setopt($curl, CURLOPT_POSTFIELDS, $parameters);
         }
-        curl_setopt($curl, CURLOPT_POSTFIELDS, $parameters);
         curl_setopt($curl, CURLOPT_URL, $url);
 
         $html = curl_exec($curl);
