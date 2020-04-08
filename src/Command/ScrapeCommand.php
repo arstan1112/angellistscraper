@@ -90,35 +90,29 @@ class ScrapeCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $url_keys   = 'http://www.angellist.loc/api/keys';
         $url_values = 'http://www.angellist.loc/api/values';
-        $parameters_for_keys = 'sort=signal&page=2';
-        $response_counter = 0;
+        $parameters_for_keys = [
+            'sort' => 'signal',
+        ];
 
-        do {
-            $values = $this->getPageValues($io, $url_keys, $url_values, $parameters_for_keys, $input->getArgument('proxy'), $input->getArgument('port'));
+        $filter_data = [
+            'filter_data[markets][]' => 'E-Commerce',
+            'filter_data[in_done_deals]' => ['Done deals', 'Not done deals'],
+            'filter_data[company_types][]' => ['Startup', 'Private Company', 'New Company', 'Same new Company'],
+        ];
+        $query_parameters = http_build_query($parameters_for_keys);
 
-            $parameters_for_keys = $values[0];
 
-            $page = $this->serializer->decode($values[1], 'json');
-            isset($page['html']) ? $html = $page['html'] : $io->error('[Line'.__LINE__.'] Command failed while getting values: page not found or wrong parameters sent');
-
-            try {
-                $arr = $this->parse($html);
-            } catch (\Throwable $exception) {
-                $io->error('[Line'.__LINE__.'] Command failed while parsing with exception: ' .$exception->getMessage() . '. (Parameter keys: '.$parameters_for_keys .')');
-                exit();
-            }
-            foreach ($arr as $ar) {
-                try {
-                    $this->save($ar);
-                } catch (\Throwable $exception) {
-                    $io->error('[Line'.__LINE__.'] Command failed while saving with exception: ' . $exception->getMessage(). '. (Parameter keys: '.$parameters_for_keys .')');
-                    exit();
+        foreach ($filter_data as $key => $filters) {
+            if (is_array($filters)) {
+                foreach ($filters as $filter) {
+                    $parameters_for_keys[$key] = $filter;
+                    $this->getExecution($io, $url_keys, $url_values, $parameters_for_keys, $input->getArgument('proxy'), $input->getArgument('port'));
                 }
+            } else {
+                $parameters_for_keys[$key] = $filters;
+                $this->getExecution($io, $url_keys, $url_values, $parameters_for_keys, $input->getArgument('proxy'), $input->getArgument('port'));
             }
-
-            $response_counter++;
-
-        } while ($response_counter<3);
+        }
 
         $io->success('Command Scrape successfully finished');
 
@@ -126,41 +120,66 @@ class ScrapeCommand extends Command
     }
 
     /**
+     * @param object       $io
+     * @param string       $url_keys
+     * @param string       $url_values
+     * @param array|string $parameters_for_keys
+     * @param null|string  $proxy
+     * @param null|string  $port
+     */
+    private function getExecution($io, $url_keys, $url_values, $parameters_for_keys, $proxy=null, $port=null)
+    {
+        $page_number = 1;
+        do {
+            $values = $this->getPageValues($io, $url_keys, $url_values, $parameters_for_keys, $proxy, $port);
+
+            $parameters_for_keys = $values[0];
+            $page = $this->serializer->decode($values[1], 'json');
+            isset($page['html']) ? $html = $page['html'] : $io->error('[Line'.__LINE__.'] Command failed while getting values: page not found or wrong parameters sent');
+
+            try {
+                $arr = $this->parse($html);
+            } catch (\Throwable $exception) {
+                $io->error('[Line'.__LINE__.'] Command failed while parsing with exception: ' .$exception->getMessage() . '. (Parameter keys: page-'.$parameters_for_keys['page'] .', sort-'.$parameters_for_keys['sort'].')');
+                exit();
+            }
+            foreach ($arr as $ar) {
+                try {
+                    $this->save($ar);
+                } catch (\Throwable $exception) {
+                    $io->error('[Line'.__LINE__.'] Command failed while saving with exception: ' . $exception->getMessage(). '. (Parameter keys: page-'.$parameters_for_keys['page'] .', sort-'.$parameters_for_keys['sort'].')');
+                    exit();
+                }
+            }
+            $page_number++;
+
+        } while ($page_number<3);
+    }
+
+    /**
      * @param object $io
      * @param string $url_keys
      * @param string $url_values
-     * @param string $parameters_for_keys
+     * @param array|string $parameters_for_keys
      * @param null|string $proxy
      * @param null|string $port
      * @return array
      */
     private function getPageValues($io, $url_keys, $url_values, $parameters_for_keys, $proxy=null, $port=null)
     {
-        $filter_data = [
-            'filter_data[company_type][]' => 'Startup',
-            'filter_data[markets][]' => 'E-Commerce',
-            'filter_data[in_done_deals]' => 'Done deals',
-        ];
-
-        $main_parameters = [
-            'sort' => 'signal',
-            'page' => 2,
-        ];
-        $full_parameters = array_merge($filter_data, $main_parameters);
-
         try {
             $query_type = 'getKey';
             $keys = $this->curlInit($url_keys, $parameters_for_keys, $query_type, $proxy, $port);
         } catch (\Throwable $exception) {
-            $io->error('[Line'.__LINE__.']Command failed while getting keys with exception: ' .$exception->getMessage() . '. (Parameter keys: '.$parameters_for_keys .')');
+            $io->error('[Line'.__LINE__.']Command failed while getting keys with exception: ' .$exception->getMessage() . '. (Parameter keys: page-'.$parameters_for_keys['page'] .', sort-'.$parameters_for_keys['sort'].')');
             exit();
         }
 
         $decoded = json_decode($keys);
-        if (isset($decoded->hexdigest)) {
-            $parameters_for_keys = 'sort='.$decoded->sort.'&page='.$decoded->page;
+        if (isset($decoded->hexdigest) && isset($decoded->page)) {
+            $parameters_for_keys['page'] = ($decoded->page+1);
         } else {
-            $io->error('[Line'.__LINE__.'] Command failed while getting keys: wrong parameters sent or hexdigest key was not found in the response' . '. (Parameter keys: '.$parameters_for_keys .')');
+            $io->error('[Line'.__LINE__.'] Command failed while getting keys: wrong parameters sent or hexdigest key was not found in the response' . '. (Parameter keys: page-'.$parameters_for_keys['page'] .', sort-'.$parameters_for_keys['sort'].')');
             exit();
         }
 
@@ -169,15 +188,15 @@ class ScrapeCommand extends Command
         $full_url_values = $url_values.'?'.$query_parameters;
         try {
             $query_type = 'getVal';
-            $page = $this->curlInit($full_url_values, null, $query_type, $proxy, $port);
+            $values = $this->curlInit($full_url_values, null, $query_type, $proxy, $port);
         } catch (\Throwable $exception) {
-            $io->error('[Line'.__LINE__.'] Command failed while getting values with exception: ' .$exception->getMessage() . '. (Parameter keys: '.$parameters_for_keys .')');
+            $io->error('[Line'.__LINE__.'] Command failed while getting values with exception: ' .$exception->getMessage() . '. (Parameter keys: page-'.$parameters_for_keys['page'] .', sort-'.$parameters_for_keys['sort'].')');
             exit();
         }
 
         $arr_values_and_parameters = [];
         $arr_values_and_parameters[] = $parameters_for_keys;
-        $arr_values_and_parameters[] = $page;
+        $arr_values_and_parameters[] = $values;
 
         return $arr_values_and_parameters;
     }
