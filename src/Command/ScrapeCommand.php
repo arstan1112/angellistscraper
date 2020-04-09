@@ -18,6 +18,8 @@ use Symfony\Component\Serializer\Serializer;
 
 class ScrapeCommand extends Command
 {
+    const MAX_PAGE_NUMBER = 3;
+
     protected static $defaultName = 'scrape';
 
     /**
@@ -95,25 +97,28 @@ class ScrapeCommand extends Command
         ];
 
         $filter_data = [
-            'filter_data[markets][]' => 'E-Commerce',
-            'filter_data[in_done_deals]' => ['Done deals', 'Not done deals'],
+            'filter_data[markets][]' => ['E-Commerce', 'Enterprise Software', 'Education', 'Games', 'Healthcare', 'Mobile'],
+            'filter_data[locations][]' => ['1688-United States', '1681-Silicon Valley', '2071-New York'],
+            'filter_data[in_done_deals]' => 'Done deals',
             'filter_data[company_types][]' => ['Startup', 'Private Company', 'New Company', 'Same new Company'],
         ];
-        $query_parameters = http_build_query($parameters_for_keys);
 
-
+        $counter_for_command_progress = 0;
         foreach ($filter_data as $key => $filters) {
             if (is_array($filters)) {
                 foreach ($filters as $filter) {
+                    $counter_for_command_progress++;
                     $parameters_for_keys[$key] = $filter;
                     $this->getExecution($io, $url_keys, $url_values, $parameters_for_keys, $input->getArgument('proxy'), $input->getArgument('port'));
+                    $io->note('Command completed for '.$counter_for_command_progress. ' set of filters');
                 }
             } else {
+                $counter_for_command_progress++;
                 $parameters_for_keys[$key] = $filters;
                 $this->getExecution($io, $url_keys, $url_values, $parameters_for_keys, $input->getArgument('proxy'), $input->getArgument('port'));
+                $io->note('Command completed for '.$counter_for_command_progress. ' set of filters');
             }
         }
-
         $io->success('Command Scrape successfully finished');
 
         return 0;
@@ -131,29 +136,34 @@ class ScrapeCommand extends Command
     {
         $page_number = 1;
         do {
+            $io->progressStart(20);
+
             $values = $this->getPageValues($io, $url_keys, $url_values, $parameters_for_keys, $proxy, $port);
+
+            if ($values==null) break;
 
             $parameters_for_keys = $values[0];
             $page = $this->serializer->decode($values[1], 'json');
-            isset($page['html']) ? $html = $page['html'] : $io->error('[Line'.__LINE__.'] Command failed while getting values: page not found or wrong parameters sent');
+            isset($page['html']) ? $html = $page['html'] : $io->error('[Line '.__LINE__.'] Command failed while getting values: page not found or wrong parameters sent');
 
             try {
                 $arr = $this->parse($html);
             } catch (\Throwable $exception) {
-                $io->error('[Line'.__LINE__.'] Command failed while parsing with exception: ' .$exception->getMessage() . '. (Parameter keys: page-'.$parameters_for_keys['page'] .', sort-'.$parameters_for_keys['sort'].')');
+                $io->error('[Line '.__LINE__.'] Command failed while parsing with exception: ' .$exception->getMessage() . '. (Parameter keys: page-'.$parameters_for_keys['page'] .', sort-'.$parameters_for_keys['sort'].')');
                 exit();
             }
             foreach ($arr as $ar) {
                 try {
                     $this->save($ar);
                 } catch (\Throwable $exception) {
-                    $io->error('[Line'.__LINE__.'] Command failed while saving with exception: ' . $exception->getMessage(). '. (Parameter keys: page-'.$parameters_for_keys['page'] .', sort-'.$parameters_for_keys['sort'].')');
+                    $io->error('[Line '.__LINE__.'] Command failed while saving with exception: ' . $exception->getMessage(). '. (Parameter keys: page-'.$parameters_for_keys['page'] .', sort-'.$parameters_for_keys['sort'].')');
                     exit();
                 }
             }
             $page_number++;
+            $io->progressFinish();
 
-        } while ($page_number<3);
+        } while ($page_number<self::MAX_PAGE_NUMBER);
     }
 
     /**
@@ -169,28 +179,28 @@ class ScrapeCommand extends Command
     {
         try {
             $query_type = 'getKey';
-            $keys = $this->curlInit($url_keys, $parameters_for_keys, $query_type, $proxy, $port);
+            $keys = $this->curlInit($url_keys, http_build_query($parameters_for_keys), $query_type, $proxy, $port);
         } catch (\Throwable $exception) {
-            $io->error('[Line'.__LINE__.']Command failed while getting keys with exception: ' .$exception->getMessage() . '. (Parameter keys: page-'.$parameters_for_keys['page'] .', sort-'.$parameters_for_keys['sort'].')');
+            $io->error('[Line '.__LINE__.']Command failed while getting keys with exception: ' .$exception->getMessage() . '. (Parameter keys: page-'.$parameters_for_keys['page'] .', sort-'.$parameters_for_keys['sort'].')');
             exit();
         }
-
         $decoded = json_decode($keys);
-        if (isset($decoded->hexdigest) && isset($decoded->page)) {
+        if (($decoded->total)==0) {
+            return null;
+        } elseif (isset($decoded->hexdigest) && isset($decoded->page)) {
             $parameters_for_keys['page'] = ($decoded->page+1);
         } else {
-            $io->error('[Line'.__LINE__.'] Command failed while getting keys: wrong parameters sent or hexdigest key was not found in the response' . '. (Parameter keys: page-'.$parameters_for_keys['page'] .', sort-'.$parameters_for_keys['sort'].')');
+            $io->error('[Line '.__LINE__.'] Command failed while getting keys: wrong parameters sent or hexdigest key was not found in the response' . '. (Parameter keys: page-'.$parameters_for_keys['page'] .', sort-'.$parameters_for_keys['sort'].')');
             exit();
         }
 
-        $parameters_for_values = $keys;
-        $query_parameters = http_build_query(json_decode($parameters_for_values));
-        $full_url_values = $url_values.'?'.$query_parameters;
+        $query_parameters_for_values = http_build_query($decoded);
+        $full_url_values = $url_values.'?'.$query_parameters_for_values;
         try {
             $query_type = 'getVal';
             $values = $this->curlInit($full_url_values, null, $query_type, $proxy, $port);
         } catch (\Throwable $exception) {
-            $io->error('[Line'.__LINE__.'] Command failed while getting values with exception: ' .$exception->getMessage() . '. (Parameter keys: page-'.$parameters_for_keys['page'] .', sort-'.$parameters_for_keys['sort'].')');
+            $io->error('[Line '.__LINE__.'] Command failed while getting values with exception: ' .$exception->getMessage() . '. (Parameter keys: page-'.$parameters_for_keys['page'] .', sort-'.$parameters_for_keys['sort'].')');
             exit();
         }
 
