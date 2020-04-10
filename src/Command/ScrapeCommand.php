@@ -48,6 +48,16 @@ class ScrapeCommand extends Command
     private $header;
 
     /**
+     * @var string
+     */
+    private $url_keys;
+
+    /**
+     * @var string
+     */
+    private $url_values;
+
+    /**
      * ScrapeCommand constructor.
      * @param EntityManagerInterface $entityManager
      * @param string|null $name
@@ -68,6 +78,9 @@ class ScrapeCommand extends Command
         $this->header[] = 'connection: keep-alive';
         $this->header[] = 'upgrade-insecure-requests: 1';
         $this->header[] = 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36';
+
+        $this->url_keys   = 'http://www.angellist.loc/api/keys';
+        $this->url_values = 'http://www.angellist.loc/api/values';
     }
 
     /**
@@ -90,12 +103,12 @@ class ScrapeCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output) : int
     {
         $io = new SymfonyStyle($input, $output);
-        $url_keys   = 'http://www.angellist.loc/api/keys';
-        $url_values = 'http://www.angellist.loc/api/values';
+
+        $proxy = $input->getArgument('proxy');
+        $port  = $input->getArgument('port');
         $parameters_for_keys = [
             'sort' => 'signal',
         ];
-
         $filter_data = [
             'filter_data[markets][]' => ['E-Commerce', 'Enterprise Software', 'Education', 'Games', 'Healthcare', 'Mobile'],
             'filter_data[locations][]' => ['1688-United States', '1681-Silicon Valley', '2071-New York'],
@@ -103,42 +116,74 @@ class ScrapeCommand extends Command
             'filter_data[company_types][]' => ['Startup', 'Private Company', 'New Company', 'Same new Company'],
         ];
 
-        $counter_for_command_progress = 0;
         foreach ($filter_data as $key => $filters) {
             if (is_array($filters)) {
-                foreach ($filters as $filter) {
-                    $counter_for_command_progress++;
-                    $parameters_for_keys[$key] = $filter;
-                    $this->getExecution($io, $url_keys, $url_values, $parameters_for_keys, $input->getArgument('proxy'), $input->getArgument('port'));
-                    $io->note('Command completed for '.$counter_for_command_progress. ' set of filters');
+                foreach ($filters as $index => $filter) {
+                    $parameters_for_keys[$key][0] = $filter;
+
+                    unset($filters[$index]);
+                    $filter_data[$key] = $filters;
+                    $this->loopFilters($io, $filter_data, $parameters_for_keys, $proxy, $port);
+                    unset($parameters_for_keys[$key][0]);
+                    $filters[$index]=$filter;
+                    $filter_data[$key] = $filters;
                 }
             } else {
-                $counter_for_command_progress++;
                 $parameters_for_keys[$key] = $filters;
-                $this->getExecution($io, $url_keys, $url_values, $parameters_for_keys, $input->getArgument('proxy'), $input->getArgument('port'));
-                $io->note('Command completed for '.$counter_for_command_progress. ' set of filters');
+                unset($filter_data[$key]);
+                $this->loopFilters($io, $filter_data, $parameters_for_keys, $proxy, $port);
+                $filter_data[$key] = $filters;
             }
         }
+
         $io->success('Command Scrape successfully finished');
 
         return 0;
     }
 
     /**
+     * @param object $io
+     * @param array|string $filter_data
+     * @param array|string $parameters_for_keys
+     * @param null|string $proxy
+     * @param null|string $port
+     */
+    private function loopFilters($io, $filter_data, $parameters_for_keys, $proxy=null, $port=null)
+    {
+        $counter_for_command_progress = 0;
+        foreach ($filter_data as $key => $filters) {
+            if (is_array($filters)) {
+                foreach ($filters as $index => $filter) {
+                    $counter_for_command_progress++;
+                    $parameters_for_keys[$key][] = $filter;
+
+                    $this->getExecution($io, $parameters_for_keys, $proxy, $port);
+                    $io->note('Command completed for '.$counter_for_command_progress. ' set of filters');
+                }
+            } else {
+                $counter_for_command_progress++;
+                $parameters_for_keys[$key] = $filters;
+
+                $this->getExecution($io, $parameters_for_keys, $proxy, $port);
+                $io->note('Command completed for '.$counter_for_command_progress. ' set of filters');
+            }
+        }
+
+    }
+
+    /**
      * @param object       $io
-     * @param string       $url_keys
-     * @param string       $url_values
      * @param array|string $parameters_for_keys
      * @param null|string  $proxy
      * @param null|string  $port
      */
-    private function getExecution($io, $url_keys, $url_values, $parameters_for_keys, $proxy=null, $port=null)
+    private function getExecution($io, $parameters_for_keys, $proxy=null, $port=null)
     {
         $page_number = 1;
         do {
             $io->progressStart(20);
 
-            $values = $this->getPageValues($io, $url_keys, $url_values, $parameters_for_keys, $proxy, $port);
+            $values = $this->getPageValues($io, $parameters_for_keys, $proxy, $port);
 
             if ($values==null) break;
 
@@ -168,18 +213,16 @@ class ScrapeCommand extends Command
 
     /**
      * @param object $io
-     * @param string $url_keys
-     * @param string $url_values
      * @param array|string $parameters_for_keys
      * @param null|string $proxy
      * @param null|string $port
      * @return array
      */
-    private function getPageValues($io, $url_keys, $url_values, $parameters_for_keys, $proxy=null, $port=null)
+    private function getPageValues($io, $parameters_for_keys, $proxy=null, $port=null)
     {
         try {
             $query_type = 'getKey';
-            $keys = $this->curlInit($url_keys, http_build_query($parameters_for_keys), $query_type, $proxy, $port);
+            $keys = $this->curlInit($this->url_keys, http_build_query($parameters_for_keys), $query_type, $proxy, $port);
         } catch (\Throwable $exception) {
             $io->error('[Line '.__LINE__.']Command failed while getting keys with exception: ' .$exception->getMessage() . '. (Parameter keys: page-'.$parameters_for_keys['page'] .', sort-'.$parameters_for_keys['sort'].')');
             exit();
@@ -195,7 +238,7 @@ class ScrapeCommand extends Command
         }
 
         $query_parameters_for_values = http_build_query($decoded);
-        $full_url_values = $url_values.'?'.$query_parameters_for_values;
+        $full_url_values = $this->url_values.'?'.$query_parameters_for_values;
         try {
             $query_type = 'getVal';
             $values = $this->curlInit($full_url_values, null, $query_type, $proxy, $port);
