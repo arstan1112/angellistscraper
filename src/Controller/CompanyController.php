@@ -87,9 +87,13 @@ class CompanyController extends AbstractController
     public function getKeys(Request $request)
     {
         if ($request->get('sort')) {
-            return $this->render('company/keys.html.twig', [
-                'data' => 'keys',
-            ]);
+            return $this->json([
+//                'status' => 'error',
+                'request' => $request->request,
+            ], 404);
+//            return $this->render('company/keys.html.twig', [
+//                'data' => 'keys',
+//            ]);
         } else {
             return $this->json([
                 'status' => 'error',

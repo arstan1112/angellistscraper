@@ -113,7 +113,6 @@ class ScrapeCommand extends Command
             'filter_data[markets][]' => ['E-Commerce', 'Enterprise Software', 'Education', 'Games', 'Healthcare', 'Mobile'],
             'filter_data[locations][]' => ['1688-United States', '1681-Silicon Valley', '2071-New York'],
             'filter_data[in_done_deals]' => 'Done deals',
-            'filter_data[company_types][]' => ['Startup', 'Private Company', 'New Company', 'Same new Company'],
         ];
 
         foreach ($filter_data as $key => $filters) {
@@ -122,9 +121,10 @@ class ScrapeCommand extends Command
                     $parameters_for_keys[$key][0] = $filter;
 
                     unset($filters[$index]);
+                    $filters = array_values($filters);
                     $filter_data[$key] = $filters;
                     $this->loopFilters($io, $filter_data, $parameters_for_keys, $proxy, $port);
-                    unset($parameters_for_keys[$key][0]);
+                    unset($parameters_for_keys[$key]);
                     $filters[$index]=$filter;
                     $filter_data[$key] = $filters;
                 }
@@ -156,6 +156,7 @@ class ScrapeCommand extends Command
                 foreach ($filters as $index => $filter) {
                     $counter_for_command_progress++;
                     $parameters_for_keys[$key][] = $filter;
+                    array_pop($parameters_for_keys[$key]);
 
                     $this->getExecution($io, $parameters_for_keys, $proxy, $port);
                     $io->note('Command completed for '.$counter_for_command_progress. ' set of filters');
@@ -222,7 +223,7 @@ class ScrapeCommand extends Command
     {
         try {
             $query_type = 'getKey';
-            $keys = $this->curlInit($this->url_keys, http_build_query($parameters_for_keys), $query_type, $proxy, $port);
+            $keys = $this->curlInit($this->url_keys, http_build_query($this->replaceForFilters($parameters_for_keys)), $query_type, $proxy, $port);
         } catch (\Throwable $exception) {
             $io->error('[Line '.__LINE__.']Command failed while getting keys with exception: ' .$exception->getMessage() . '. (Parameter keys: page-'.$parameters_for_keys['page'] .', sort-'.$parameters_for_keys['sort'].')');
             exit();
@@ -441,6 +442,11 @@ class ScrapeCommand extends Command
         $launch = explode($delimiters[0], $ready);
 
         return  $launch;
+    }
+
+    private function replaceForFilters(string $query)
+    {
+        return str_replace('%5B'.'0'.'%5D', '%5B%5D',$query);
     }
 
 }
