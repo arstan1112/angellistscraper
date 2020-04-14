@@ -50,12 +50,12 @@ class ScrapeCommand extends Command
     /**
      * @var string
      */
-    private $url_keys;
+    private $urlKeys;
 
     /**
      * @var string
      */
-    private $url_values;
+    private $urlValues;
 
     /**
      * ScrapeCommand constructor.
@@ -68,7 +68,7 @@ class ScrapeCommand extends Command
 
         $this->em = $entityManager;
         $this->normalizer = new ObjectNormalizer();
-        $this->encoder    = new JsonEncoder();
+        $this->encoder = new JsonEncoder();
         $this->serializer = new Serializer([$this->normalizer], [$this->encoder]);
 
         $this->header[] = 'accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9';
@@ -79,8 +79,8 @@ class ScrapeCommand extends Command
         $this->header[] = 'upgrade-insecure-requests: 1';
         $this->header[] = 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36';
 
-        $this->url_keys   = 'http://www.angellist.loc/api/keys';
-        $this->url_values = 'http://www.angellist.loc/api/values';
+        $this->urlKeys = 'http://www.angellist.loc/api/keys';
+        $this->urlValues = 'http://www.angellist.loc/api/values';
     }
 
     /**
@@ -91,58 +91,57 @@ class ScrapeCommand extends Command
         $this
             ->setDescription('Scrape angel.co. First argument - proxy address, second argument - proxy port number')
             ->addArgument('proxy', InputArgument::OPTIONAL, 'Proxy address')
-            ->addArgument('port', InputArgument::OPTIONAL, 'Proxy port')
-        ;
+            ->addArgument('port', InputArgument::OPTIONAL, 'Proxy port');
     }
 
     /**
-     * @param InputInterface $input
+     * @param InputInterface  $input
      * @param OutputInterface $output
      * @return int
      */
-    protected function execute(InputInterface $input, OutputInterface $output) : int
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
 
         $proxy = $input->getArgument('proxy');
-        $port  = $input->getArgument('port');
-        $parameters_for_keys = [
+        $port = $input->getArgument('port');
+        $parametersForKeys = [
             'sort' => 'signal',
         ];
-        $filter_data = [
+        $filterData = [
             'filter_data[markets]' => ['E-Commerce', 'Enterprise Software', 'Education', 'Games', 'Healthcare', 'Mobile'],
             'filter_data[company_types]' => ['Startup', 'Private Company', 'New Company', 'Same new Company'],
             'filter_data[locations]' => ['1688-United States', '1681-Silicon Valley', '2071-New York'],
             'filter_data[in_done_deals]' => 'Done deals',
         ];
 
-        $counter_for_command_progress = 0;
+        $counterForCommandProgress = 0;
 
-        foreach ($filter_data as $key => $filters) {
+        foreach ($filterData as $key => $filters) {
             if (is_array($filters)) {
                 foreach ($filters as $index => $filter) {
-                    $counter_for_command_progress++;
+                    $counterForCommandProgress++;
 
-                    $parameters_for_keys[$key][0] = $filter;
+                    $parametersForKeys[$key][0] = $filter;
                     unset($filters[$index]);
                     $filters = array_values($filters);
-                    $filter_data[$key] = $filters;
-                    $this->loopFilters($io, $filter_data, $parameters_for_keys, $proxy, $port);
-                    unset($parameters_for_keys[$key]);
-                    $filters[$index]=$filter;
-                    $filter_data[$key] = $filters;
+                    $filterData[$key] = $filters;
+                    $this->loopFilters($io, $filterData, $parametersForKeys, $proxy, $port);
+                    unset($parametersForKeys[$key]);
+                    $filters[$index] = $filter;
+                    $filterData[$key] = $filters;
 
-                    $io->note('Command completed for '.$counter_for_command_progress. ' set of filters');
+                    $io->note('Command completed for ' . $counterForCommandProgress . ' set of filters');
                 }
             } else {
-                $counter_for_command_progress++;
+                $counterForCommandProgress++;
 
-                $parameters_for_keys[$key] = $filters;
-                unset($filter_data[$key]);
-                $this->loopFilters($io, $filter_data, $parameters_for_keys, $proxy, $port);
-                $filter_data[$key] = $filters;
+                $parametersForKeys[$key] = $filters;
+                unset($filterData[$key]);
+                $this->loopFilters($io, $filterData, $parametersForKeys, $proxy, $port);
+                $filterData[$key] = $filters;
 
-                $io->note('Command completed for '.$counter_for_command_progress. ' set of filters');
+                $io->note('Command completed for ' . $counterForCommandProgress . ' set of filters');
             }
         }
 
@@ -152,109 +151,112 @@ class ScrapeCommand extends Command
     }
 
     /**
-     * @param object $io
-     * @param array|string $filter_data
-     * @param array|string $parameters_for_keys
-     * @param null|string $proxy
-     * @param null|string $port
+     * @param object       $io
+     * @param array|string $filterData
+     * @param array|string $parametersForKeys
+     * @param null|string  $proxy
+     * @param null|string  $port
      */
-    private function loopFilters($io, $filter_data, $parameters_for_keys, $proxy=null, $port=null)
+    private function loopFilters($io, $filterData, $parametersForKeys, $proxy = null, $port = null)
     {
-        foreach ($filter_data as $key => $filters) {
+        foreach ($filterData as $key => $filters) {
             if (is_array($filters)) {
                 foreach ($filters as $index => $filter) {
-                    $parameters_for_keys[$key][] = $filter;
-                    $this->getExecution($io, $parameters_for_keys, $proxy, $port);
-                    array_pop($parameters_for_keys[$key]);
+                    $parametersForKeys[$key][] = $filter;
+                    $this->getExecution($io, $parametersForKeys, $proxy, $port);
+                    array_pop($parametersForKeys[$key]);
                 }
             } else {
-                $parameters_for_keys[$key] = $filters;
-                $this->getExecution($io, $parameters_for_keys, $proxy, $port);
+                $parametersForKeys[$key] = $filters;
+                $this->getExecution($io, $parametersForKeys, $proxy, $port);
             }
         }
     }
 
     /**
-     * @param object       $io
-     * @param array|string $parameters_for_keys
-     * @param null|string  $proxy
-     * @param null|string  $port
+     * @param object $io
+     * @param array|string $parametersForKeys
+     * @param null|string $proxy
+     * @param null|string $port
      */
-    private function getExecution($io, $parameters_for_keys, $proxy=null, $port=null)
+    private function getExecution($io, $parametersForKeys, $proxy = null, $port = null)
     {
-        $page_number = 1;
+        $pageNumber = 1;
         do {
             $io->progressStart(20);
 
-            $values = $this->getPageValues($io, $parameters_for_keys, $proxy, $port);
+            $values = $this->getPageValues($io, $parametersForKeys, $proxy, $port);
 
-            if ($values==null) break;
+            if ($values == null) {
+                break;
+            }
 
-            $parameters_for_keys = $values[0];
+            $parametersForKeys = $values[0];
             $page = $this->serializer->decode($values[1], 'json');
-            isset($page['html']) ? $html = $page['html'] : $io->error('[Line '.__LINE__.'] Command failed while getting values: page not found or wrong parameters sent');
+            isset($page['html']) ? $html = $page['html'] : $io->error('[Line ' . __LINE__ . '] Command failed while getting values: page not found or wrong parameters sent');
 
             try {
                 $arr = $this->parse($html);
             } catch (\Throwable $exception) {
-                $io->error('[Line '.__LINE__.'] Command failed while parsing with exception: ' .$exception->getMessage() . '. (Parameter keys: page-'.$parameters_for_keys['page'] .', sort-'.$parameters_for_keys['sort'].')');
+                $io->error('[Line ' . __LINE__ . '] Command failed while parsing with exception: ' . $exception->getMessage() . '. (Parameter keys: page-' . $parametersForKeys['page'] . ', sort-' . $parametersForKeys['sort'] . ')');
                 exit();
             }
             foreach ($arr as $ar) {
                 try {
                     $this->save($ar);
                 } catch (\Throwable $exception) {
-                    $io->error('[Line '.__LINE__.'] Command failed while saving with exception: ' . $exception->getMessage(). '. (Parameter keys: page-'.$parameters_for_keys['page'] .', sort-'.$parameters_for_keys['sort'].')');
+                    $io->error('[Line ' . __LINE__ . '] Command failed while saving with exception: ' . $exception->getMessage() . '. (Parameter keys: page-' . $parametersForKeys['page'] . ', sort-' . $parametersForKeys['sort'] . ')');
                     exit();
                 }
             }
-            $page_number++;
+            $pageNumber++;
             $io->progressFinish();
 
-        } while ($page_number<self::MAX_PAGE_NUMBER);
+        } while ($pageNumber < self::MAX_PAGE_NUMBER);
     }
 
     /**
-     * @param object $io
-     * @param array|string $parameters_for_keys
-     * @param null|string $proxy
-     * @param null|string $port
+     * @param object       $io
+     * @param array|string $parametersForKeys
+     * @param null|string  $proxy
+     * @param null|string  $port
      * @return array
      */
-    private function getPageValues($io, $parameters_for_keys, $proxy=null, $port=null)
+    private function getPageValues($io, $parametersForKeys, $proxy = null, $port = null)
     {
         try {
-            $query_type = 'getKey';
-            $keys = $this->curlInit($this->url_keys, $this->fixQueryString(http_build_query($parameters_for_keys)), $query_type, $proxy, $port);
+            $queryType = 'getKey';
+            $keys = $this->curlInit($this->urlKeys, $this->fixQueryString(http_build_query($parametersForKeys)),
+                $queryType, $proxy, $port);
         } catch (\Throwable $exception) {
-            $io->error('[Line '.__LINE__.']Command failed while getting keys with exception: ' .$exception->getMessage() . '. (Parameter keys: page-'.$parameters_for_keys['page'] .', sort-'.$parameters_for_keys['sort'].')');
+            $io->error('[Line ' . __LINE__ . ']Command failed while getting keys with exception: ' . $exception->getMessage() . '. (Parameter keys: page-' . $parametersForKeys['page'] . ', sort-' . $parametersForKeys['sort'] . ')');
             exit();
         }
         $decoded = json_decode($keys);
-        if (($decoded->total)==0) {
+        if (($decoded->total) == 0) {
             return null;
         } elseif (isset($decoded->hexdigest) && isset($decoded->page)) {
-            $parameters_for_keys['page'] = ($decoded->page+1);
+            $parametersForKeys['page'] = ($decoded->page + 1);
         } else {
-            $io->error('[Line '.__LINE__.'] Command failed while getting keys: wrong parameters sent or hexdigest key was not found in the response' . '. (Parameter keys: page-'.$parameters_for_keys['page'] .', sort-'.$parameters_for_keys['sort'].')');
+            $io->error('[Line ' . __LINE__ . '] Command failed while getting keys: wrong parameters sent or hexdigest key was not found in the response' . '. (Parameter keys: page-' . $parametersForKeys['page'] . ', sort-' . $parametersForKeys['sort'] . ')');
             exit();
         }
 
-        $query_parameters_for_values = http_build_query($decoded);
-        $full_url_values = $this->url_values.'?'.$query_parameters_for_values;
+        $queryParametersForValues = http_build_query($decoded);
+        $fullUrlValues = $this->urlValues . '?' . $queryParametersForValues;
         try {
-            $query_type = 'getVal';
-            $values = $this->curlInit($full_url_values, null, $query_type, $proxy, $port);
+            $queryType = 'getVal';
+            $values = $this->curlInit($fullUrlValues, null, $queryType, $proxy, $port);
         } catch (\Throwable $exception) {
-            $io->error('[Line '.__LINE__.'] Command failed while getting values with exception: ' .$exception->getMessage() . '. (Parameter keys: page-'.$parameters_for_keys['page'] .', sort-'.$parameters_for_keys['sort'].')');
+            $io->error('[Line ' . __LINE__ . '] Command failed while getting values with exception: ' . $exception->getMessage() . '. (Parameter keys: page-' . $parametersForKeys['page'] . ', sort-' . $parametersForKeys['sort'] . ')');
             exit();
         }
 
-        $arr_values_and_parameters = [];
-        $arr_values_and_parameters[] = $parameters_for_keys;
-        $arr_values_and_parameters[] = $values;
+        $arrValuesAndParameters = [];
+        $arrValuesAndParameters[] = $parametersForKeys;
+        $arrValuesAndParameters[] = $values;
 
-        return $arr_values_and_parameters;
+        return $arrValuesAndParameters;
     }
 
     /**
@@ -266,7 +268,7 @@ class ScrapeCommand extends Command
      * @return bool|string
      * @throws \ErrorException
      */
-    private function curlInit($url, $parameters=null, $type=null, $proxy=null, $port=null)
+    private function curlInit($url, $parameters = null, $type = null, $proxy = null, $port = null)
     {
         $curl = curl_init();
 
@@ -275,23 +277,22 @@ class ScrapeCommand extends Command
             curl_setopt($curl, CURLOPT_PROXYPORT, $port);
         }
         curl_setopt($curl, CURLOPT_HTTPHEADER, $this->header);
-        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, FALSE);
+        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($curl, CURLOPT_SSL_CIPHER_LIST, 'TLSv1');
-        curl_setopt($curl, CURLOPT_ENCODING, "UTF-8" );
-        curl_setopt($curl, CURLOPT_COOKIESESSION, TRUE);
-        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, TRUE);
+        curl_setopt($curl, CURLOPT_ENCODING, "UTF-8");
+        curl_setopt($curl, CURLOPT_COOKIESESSION, true);
+        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($curl, CURLOPT_TIMEOUT, 50);
-        if ($type=='getKey') {
+        if ($type == 'getKey') {
             curl_setopt($curl, CURLOPT_POST, 1);
             curl_setopt($curl, CURLOPT_POSTFIELDS, $parameters);
         }
         curl_setopt($curl, CURLOPT_URL, $url);
 
         $html = curl_exec($curl);
-        if (!$html)
-        {
-            throw new \ErrorException('Error number: ' .curl_errno($curl). ' Error message: ' .curl_error($curl));
+        if (!$html) {
+            throw new \ErrorException('Error number: ' . curl_errno($curl) . ' Error message: ' . curl_error($curl));
         }
         curl_close($curl);
 
@@ -304,7 +305,7 @@ class ScrapeCommand extends Command
      */
     private function parse($html)
     {
-        $dom   = new \DOMDocument();
+        $dom = new \DOMDocument();
         $dom->loadHTML($html);
         $xpath = new \DOMXPath($dom);
         $elements = $xpath->query('//*[@class="base startup"]');
@@ -314,36 +315,55 @@ class ScrapeCommand extends Command
         if (!is_null($elements)) {
             foreach ($elements as $element) {
                 $nodes = $element->childNodes;
-                $arr_base_startup = [];
+                $arrBaseStartup = [];
                 foreach ($nodes as $node) {
-                    $node_val = $node->nodeValue;
-                    $node_val = preg_replace("/[^A-Za-z0-9@.\- ]/", '', $node_val);
-                    $arr_base_startup[] = $node_val;
+                    $nodeVal = $node->nodeValue;
+                    $nodeVal = preg_replace("/[^A-Za-z0-9@.\- ]/", '', $nodeVal);
+                    $arrBaseStartup[] = $nodeVal;
                 }
-                $node_imploded = implode('', $arr_base_startup);
-                $delimiters = ['Signal', 'Joined', 'Location', 'Market', 'Website', 'Stage', 'Employees', 'Total Raised'];
-                $node = $this->multiexplode($delimiters, $node_imploded);
+                $nodeImploded = implode('', $arrBaseStartup);
+                $delimiters = [
+                    'Signal',
+                    'Joined',
+                    'Location',
+                    'Market',
+                    'Website',
+                    'Stage',
+                    'Employees',
+                    'Total Raised'
+                ];
+                $node = $this->multiexplode($delimiters, $nodeImploded);
 
-                $keys = ['Name', 'Signal', 'Joined', 'Location', 'Market', 'Website', 'Employees', 'Stage', 'Total Raised'];
+                $keys = [
+                    'Name',
+                    'Signal',
+                    'Joined',
+                    'Location',
+                    'Market',
+                    'Website',
+                    'Employees',
+                    'Stage',
+                    'Total Raised'
+                ];
 
-                if (count($node)==9) {
+                if (count($node) == 9) {
                     $node = array_combine($keys, $node);
-                    $name        = $xpath->query('//*[@class="name"]');
+                    $name = $xpath->query('//*[@class="name"]');
                     $description = $xpath->query('//*[@class="pitch"]');
-                    $node['Name']        = $this->getNodeValue($name, $counter);
+                    $node['Name'] = $this->getNodeValue($name, $counter);
                     $node['Description'] = $this->getNodeValue($description, $counter);
                     if ($node) {
                         $arr[] = $node;
                     }
 
-                } elseif (count($node)!==9) {
+                } elseif (count($node) !== 9) {
                     $arr = $this->parseWithOnlyXpath($html, $arr, $counter);
                 }
                 $counter++;
             }
         }
 
-        if (count($arr)>20) {
+        if (count($arr) > 20) {
             array_shift($arr);
             array_pop($arr);
         }
@@ -359,28 +379,28 @@ class ScrapeCommand extends Command
      */
     private function parseWithOnlyXpath($html, $arr, $counter)
     {
-        $dom   = new \DOMDocument();
+        $dom = new \DOMDocument();
         $dom->loadHTML($html);
         $xpath = new \DOMXPath($dom);
 
-        $name        = $xpath->query('//*[@class="name"]');
+        $name = $xpath->query('//*[@class="name"]');
         $description = $xpath->query('//*[@class="pitch"]');
-        $joined      = $xpath->query('//*[@data-column="joined"]');
-        $location    = $xpath->query('//*[@data-column="location"]');
-        $market      = $xpath->query('//*[@data-column="market"]');
-        $website     = $xpath->query('//*[@data-column="website"]');
-        $employees   = $xpath->query('//*[@data-column="company_size"]');
-        $stage       = $xpath->query('//*[@data-column="stage"]');
-        $raised      = $xpath->query('//*[@data-column="raised"]');
+        $joined = $xpath->query('//*[@data-column="joined"]');
+        $location = $xpath->query('//*[@data-column="location"]');
+        $market = $xpath->query('//*[@data-column="market"]');
+        $website = $xpath->query('//*[@data-column="website"]');
+        $employees = $xpath->query('//*[@data-column="company_size"]');
+        $stage = $xpath->query('//*[@data-column="stage"]');
+        $raised = $xpath->query('//*[@data-column="raised"]');
 
-        $nodeXpath['Name']         = $this->getNodeValue($name, $counter);
-        $nodeXpath['Description']  = $this->getNodeValue($description, $counter);
-        $nodeXpath['Joined']       = $this->getNodeValue($joined, $counter);
-        $nodeXpath['Location']     = $this->getNodeValue($location, $counter);
-        $nodeXpath['Market']       = $this->getNodeValue($market, $counter);
-        $nodeXpath['Website']      = $this->getNodeValue($website, $counter);
-        $nodeXpath['Employees']    = $this->getNodeValue($employees, $counter);
-        $nodeXpath['Stage']        = $this->getNodeValue($stage, $counter);
+        $nodeXpath['Name'] = $this->getNodeValue($name, $counter);
+        $nodeXpath['Description'] = $this->getNodeValue($description, $counter);
+        $nodeXpath['Joined'] = $this->getNodeValue($joined, $counter);
+        $nodeXpath['Location'] = $this->getNodeValue($location, $counter);
+        $nodeXpath['Market'] = $this->getNodeValue($market, $counter);
+        $nodeXpath['Website'] = $this->getNodeValue($website, $counter);
+        $nodeXpath['Employees'] = $this->getNodeValue($employees, $counter);
+        $nodeXpath['Stage'] = $this->getNodeValue($stage, $counter);
         $nodeXpath['Total Raised'] = $this->getNodeValue($raised, $counter);
 
         if ($nodeXpath) {
@@ -413,19 +433,19 @@ class ScrapeCommand extends Command
 
     /**
      * @param object $node
-     * @param int    $counter
+     * @param int $counter
      * @return mixed
      */
     private function getNodeValue($node, $counter)
     {
         $value = [];
         foreach ($node[$counter]->childNodes as $child) {
-            $val = str_replace(array("\n","\r"), '', $child->nodeValue);
+            $val = str_replace(array("\n", "\r"), '', $child->nodeValue);
             if ($val) {
                 $value[] = $val;
             }
         }
-        if (count($value)>1) {
+        if (count($value) > 1) {
             return $value[1];
         }
         if ($value) {
@@ -438,12 +458,12 @@ class ScrapeCommand extends Command
      * @param string $string
      * @return array
      */
-    private final function multiexplode($delimiters,$string)
+    private final function multiexplode($delimiters, $string)
     {
         $ready = str_replace($delimiters, $delimiters[0], $string);
         $launch = explode($delimiters[0], $ready);
 
-        return  $launch;
+        return $launch;
     }
 
     /**

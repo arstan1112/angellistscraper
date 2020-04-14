@@ -6,10 +6,13 @@ use App\Entity\Company;
 use CloudflareBypass\CFCurlImpl;
 use CloudflareBypass\Model\UAMOptions;
 use Doctrine\ORM\EntityManagerInterface;
+use Knp\Component\Pager\Pagination\PaginationInterface;
+use Knp\Component\Pager\PaginatorInterface;
 use Masterminds\HTML5;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Config\Definition\Exception\Exception;
 use Symfony\Component\DomCrawler\Crawler;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
@@ -25,12 +28,19 @@ class CompanyController extends AbstractController
     private $em;
 
     /**
+     * @var PaginatorInterface
+     */
+    private $paginator;
+
+    /**
      * CompanyController constructor.
      * @param EntityManagerInterface $em
+     * @param PaginatorInterface $paginator
      */
-    public function __construct(EntityManagerInterface $em)
+    public function __construct(EntityManagerInterface $em, PaginatorInterface $paginator)
     {
         $this->em = $em;
+        $this->paginator = $paginator;
     }
 
     /**
@@ -47,11 +57,17 @@ class CompanyController extends AbstractController
 
     /**
      * @Route("/list", name="company.list")
+     * @param Request $request
      * @return Response
      */
-    public function list()
+    public function list(Request $request)
     {
-        $companies = $this->em->getRepository(Company::class)->findAll();
+        $companiesQuery = $this->em->getRepository(Company::class)->findAll();
+        $companies = $this->paginator->paginate(
+            $companiesQuery,
+            $request->query->getInt('page', 1),
+            5
+        );
         return $this->render('company/list.html.twig', [
             'companies' => $companies,
         ]);

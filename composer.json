@@ -7,6 +7,8 @@
         "ext-curl": "*",
         "ext-dom": "*",
         "ext-iconv": "*",
+        "ext-json": "*",
+        "knplabs/knp-paginator-bundle": "^5.1",
         "kyranrana/cloudflare-bypass": "^3.4",
         "masterminds/html5": "^2.7",
         "sensio/framework-extra-bundle": "^5.1",
@@ -34,8 +36,7 @@
         "symfony/twig-pack": "*",
         "symfony/validator": "5.0.*",
         "symfony/web-link": "5.0.*",
-        "symfony/yaml": "5.0.*",
-      "ext-json": "*"
+        "symfony/yaml": "5.0.*"
     },
     "require-dev": {
         "symfony/debug-pack": "*",
