@@ -110,16 +110,20 @@ class ScrapeCommand extends Command
             'sort' => 'signal',
         ];
         $filter_data = [
-            'filter_data[markets][]' => ['E-Commerce', 'Enterprise Software', 'Education', 'Games', 'Healthcare', 'Mobile'],
-            'filter_data[locations][]' => ['1688-United States', '1681-Silicon Valley', '2071-New York'],
+            'filter_data[markets]' => ['E-Commerce', 'Enterprise Software', 'Education', 'Games', 'Healthcare', 'Mobile'],
+            'filter_data[company_types]' => ['Startup', 'Private Company', 'New Company', 'Same new Company'],
+            'filter_data[locations]' => ['1688-United States', '1681-Silicon Valley', '2071-New York'],
             'filter_data[in_done_deals]' => 'Done deals',
         ];
+
+        $counter_for_command_progress = 0;
 
         foreach ($filter_data as $key => $filters) {
             if (is_array($filters)) {
                 foreach ($filters as $index => $filter) {
-                    $parameters_for_keys[$key][0] = $filter;
+                    $counter_for_command_progress++;
 
+                    $parameters_for_keys[$key][0] = $filter;
                     unset($filters[$index]);
                     $filters = array_values($filters);
                     $filter_data[$key] = $filters;
@@ -127,12 +131,18 @@ class ScrapeCommand extends Command
                     unset($parameters_for_keys[$key]);
                     $filters[$index]=$filter;
                     $filter_data[$key] = $filters;
+
+                    $io->note('Command completed for '.$counter_for_command_progress. ' set of filters');
                 }
             } else {
+                $counter_for_command_progress++;
+
                 $parameters_for_keys[$key] = $filters;
                 unset($filter_data[$key]);
                 $this->loopFilters($io, $filter_data, $parameters_for_keys, $proxy, $port);
                 $filter_data[$key] = $filters;
+
+                $io->note('Command completed for '.$counter_for_command_progress. ' set of filters');
             }
         }
 
@@ -150,26 +160,18 @@ class ScrapeCommand extends Command
      */
     private function loopFilters($io, $filter_data, $parameters_for_keys, $proxy=null, $port=null)
     {
-        $counter_for_command_progress = 0;
         foreach ($filter_data as $key => $filters) {
             if (is_array($filters)) {
                 foreach ($filters as $index => $filter) {
-                    $counter_for_command_progress++;
                     $parameters_for_keys[$key][] = $filter;
-                    array_pop($parameters_for_keys[$key]);
-
                     $this->getExecution($io, $parameters_for_keys, $proxy, $port);
-                    $io->note('Command completed for '.$counter_for_command_progress. ' set of filters');
+                    array_pop($parameters_for_keys[$key]);
                 }
             } else {
-                $counter_for_command_progress++;
                 $parameters_for_keys[$key] = $filters;
-
                 $this->getExecution($io, $parameters_for_keys, $proxy, $port);
-                $io->note('Command completed for '.$counter_for_command_progress. ' set of filters');
             }
         }
-
     }
 
     /**
@@ -223,7 +225,7 @@ class ScrapeCommand extends Command
     {
         try {
             $query_type = 'getKey';
-            $keys = $this->curlInit($this->url_keys, http_build_query($this->replaceForFilters($parameters_for_keys)), $query_type, $proxy, $port);
+            $keys = $this->curlInit($this->url_keys, $this->fixQueryString(http_build_query($parameters_for_keys)), $query_type, $proxy, $port);
         } catch (\Throwable $exception) {
             $io->error('[Line '.__LINE__.']Command failed while getting keys with exception: ' .$exception->getMessage() . '. (Parameter keys: page-'.$parameters_for_keys['page'] .', sort-'.$parameters_for_keys['sort'].')');
             exit();
@@ -444,9 +446,13 @@ class ScrapeCommand extends Command
         return  $launch;
     }
 
-    private function replaceForFilters(string $query)
+    /**
+     * @param string $query
+     * @return string|string[]|null
+     */
+    private function fixQueryString(string $query)
     {
-        return str_replace('%5B'.'0'.'%5D', '%5B%5D',$query);
+        return preg_replace('/%5B([^[a-zA-Z]|%5D]*)%5D/', '%5B%5D', $query);
     }
 
 }
