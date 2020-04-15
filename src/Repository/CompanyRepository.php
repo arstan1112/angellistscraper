@@ -19,6 +19,15 @@ class CompanyRepository extends ServiceEntityRepository
         parent::__construct($registry, Company::class);
     }
 
+    public function findByCategory($category)
+    {
+        return $this->createQueryBuilder('c')
+            ->orderBy('c.'.$category, 'ASC')
+            ->getQuery()
+            ->getResult()
+            ;
+    }
+
     // /**
     //  * @return Company[] Returns an array of Company objects
     //  */

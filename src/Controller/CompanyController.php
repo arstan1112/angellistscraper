@@ -56,20 +56,30 @@ class CompanyController extends AbstractController
     }
 
     /**
-     * @Route("/list", name="company.list")
+     * @Route("/list/{category}", name="company.list", defaults={"category":""})
      * @param Request $request
+     * @param string $category
      * @return Response
      */
-    public function list(Request $request)
+    public function list(Request $request, string $category)
     {
-        $companiesQuery = $this->em->getRepository(Company::class)->findAll();
+        if (!(empty($category))) {
+            $companiesQuery = $this->em->getRepository(Company::class)->findByCategory($category);
+        } else {
+            $companiesQuery = $this->em->getRepository(Company::class)->findAll();
+        }
+        $totalCompanies = count($companiesQuery);
         $companies = $this->paginator->paginate(
             $companiesQuery,
             $request->query->getInt('page', 1),
-            5
+            10
         );
         return $this->render('company/list.html.twig', [
             'companies' => $companies,
+            'totalCompanies' => $totalCompanies,
+            'name' => 'name',
+            'location' => 'location',
+            'market' => 'market'
         ]);
     }
 
