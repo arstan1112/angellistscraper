@@ -50,9 +50,14 @@ class CompanyController extends AbstractController
      */
     public function index(Request $request)
     {
-        return $this->render('company/index.html.twig', [
-            'request' => $request,
-        ]);
+    	return $this->json([
+    		'status' => 'Angellist',
+    		'request' => $request->getMethod(),
+
+    	]);
+        // return $this->render('company/index.html.twig', [
+            // 'request' => $request,
+        // ]);
     }
 
     /**
