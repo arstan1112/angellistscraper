@@ -44,20 +44,15 @@ class CompanyController extends AbstractController
     }
 
     /**
-     * @Route("/", name="company.emulate")
+     * @Route("/", name="company.emulate", methods={"GET", "POST"})
      * @param Request $request
      * @return Response
      */
     public function index(Request $request)
     {
-    	return $this->json([
-    		'status' => 'Angellist',
-    		'request' => $request->getMethod(),
-
-    	]);
-        // return $this->render('company/index.html.twig', [
-            // 'request' => $request,
-        // ]);
+         return $this->render('company/index.html.twig', [
+             'request' => $request,
+         ]);
     }
 
     /**
@@ -85,6 +80,19 @@ class CompanyController extends AbstractController
             'name' => 'name',
             'location' => 'location',
             'market' => 'market'
+        ]);
+    }
+
+    /**
+     * @Route("/show/{id}", name="company.show", requirements={"id"="\d+"})
+     * @param $id
+     * @return Response
+     */
+    public function search($id)
+    {
+        $company = $this->em->getRepository(Company::class)->find($id);
+        return $this->render('company/show.html.twig', [
+            'company' => $company,
         ]);
     }
 

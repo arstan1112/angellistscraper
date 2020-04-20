@@ -6,4 +6,4 @@ Feature: Retrieving some page for the https://angellist.loc
 
     Scenario: I see target page
         Given I am on the main page
-        And I see the word "Angellist" somewhere on the page
+#        And I see the word "Angellist" somewhere on the page

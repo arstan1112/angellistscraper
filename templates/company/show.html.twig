@@ -1,0 +1,54 @@
+{% extends 'base.html.twig' %}
+
+{% block body %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-sm-2 d-none d-md-block">
+            {% include 'sidebar.html.twig' %}
+        </div>
+            <div class="col-sm-10">
+                <div class="list-group">
+                    <a href="#" class="list-group-item" style="background-color: #f9f9f9">
+                        <div class="row">
+                            <div class="col-sm-2" style="color: #0a0a0a">
+                                Name
+                            </div>
+                            <div class="col-sm-3" style="color: #0a0a0a">
+                                Location
+                            </div>
+                            <div class="col-sm-3" style="color: #0a0a0a">
+                                Market
+                            </div>
+                            <div class="col-sm-2" style="color: #0a0a0a">
+                                Website
+                            </div>
+                            <div class="col-sm-2" style="color: #0a0a0a">
+                                Employees
+                            </div>
+                        </div>
+                    </a>
+                    <a href="#" class="list-group-item">
+                        <div class="row">
+                            <div class="col-sm-2">
+                                {{ company.name }}
+                            </div>
+                            <div class="col-sm-3">
+                                {{ company.location }}
+                            </div>
+                            <div class="col-sm-3">
+                                {{ company.market }}
+                            </div>
+                            <div class="col-sm-2">
+                                {{ company.website }}
+                            </div>
+                            <div class="col-sm-2">
+                                {{ company.employees }}
+                            </div>
+                        </div>
+                    </a>
+                </div>
+                <br>
+            </div>
+    </div>
+</div>
+{% endblock %}
