@@ -27,25 +27,27 @@
                             </div>
                         </div>
                     </a>
-                    <a href="#" class="list-group-item">
-                        <div class="row">
-                            <div class="col-sm-2">
-                                {{ company.name }}
+                    {% for company in companies %}
+                        <a href="#" class="list-group-item">
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    {{ company.name }}
+                                </div>
+                                <div class="col-sm-3">
+                                    {{ company.location }}
+                                </div>
+                                <div class="col-sm-3">
+                                    {{ company.market }}
+                                </div>
+                                <div class="col-sm-2">
+                                    {{ company.website }}
+                                </div>
+                                <div class="col-sm-2">
+                                    {{ company.employees }}
+                                </div>
                             </div>
-                            <div class="col-sm-3">
-                                {{ company.location }}
-                            </div>
-                            <div class="col-sm-3">
-                                {{ company.market }}
-                            </div>
-                            <div class="col-sm-2">
-                                {{ company.website }}
-                            </div>
-                            <div class="col-sm-2">
-                                {{ company.employees }}
-                            </div>
-                        </div>
-                    </a>
+                        </a>
+                    {% endfor %}
                 </div>
                 <br>
             </div>

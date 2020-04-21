@@ -88,12 +88,35 @@ class CompanyController extends AbstractController
      * @param $id
      * @return Response
      */
-    public function search($id)
+    public function show($id)
     {
         $company = $this->em->getRepository(Company::class)->find($id);
         return $this->render('company/show.html.twig', [
             'company' => $company,
         ]);
+    }
+
+    /**
+     * @Route("/search", name="company.search")
+     * @param Request $request
+     * @return Response
+     */
+    public function search(Request $request)
+    {
+        $name = $request->query->get('company');
+        $company = $this->em->getRepository(Company::class)->findByName($name);
+        $totalCompanies = count($company);
+        if ($company) {
+            return $this->render('company/show.html.twig', [
+                'companies' => $company,
+                'totalCompanies' => $totalCompanies,
+                'name' => 'name',
+                'location' => 'location',
+                'market' => 'market'
+            ]);
+        } else {
+            return $this->redirectToRoute('company.list');
+        }
     }
 
     /**
