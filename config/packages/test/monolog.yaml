@@ -1,4 +1,5 @@
 monolog:
+    channels: [angel_logs]
     handlers:
         main:
             type: fingers_crossed
@@ -10,3 +11,8 @@ monolog:
             type: stream
             path: "%kernel.logs_dir%/%kernel.environment%.log"
             level: debug
+        angel:
+            type: stream
+            path: "%kernel.logs_dir%/angel.log"
+            level: debug
+            channels: ["angel_logs"]

@@ -25,10 +25,12 @@ class Parser
      * @param KernelInterface $kernel
      * @param EntityManagerInterface $em
      */
+//    public function __construct(KernelInterface $kernel, EntityManagerInterface $em, LoggerInterface $angelLogger)
     public function __construct(KernelInterface $kernel, EntityManagerInterface $em)
     {
         $this->kernel = $kernel;
         $this->em = $em;
+//        $this->angelLogger = $angelLogger;
     }
 
     /**
@@ -36,9 +38,13 @@ class Parser
      * @return null
      */
     public function execute(string $location)
+//    public function execute()
     {
+//        $this->angelLogger->info('Parser Service has been initiated');
+
         $path = $this->kernel->getContainer()->getParameter('save_path');
         $name = 'angellist_' . strtolower($location) . '.html';
+//        $name = 'angellist.html';
 
         $htmlFile = $path . '/' . $name;
         $html = file_get_contents($htmlFile);
@@ -66,6 +72,8 @@ class Parser
                 exit();
             }
         }
+
+//        $this->angelLogger->info('Parser Service executed successfully');
 
         return null;
     }

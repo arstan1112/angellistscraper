@@ -2,7 +2,7 @@ default:
     suites:
         default:
             paths: [/var/www/angellistscraper/features/angellist.feature]
-            contexts: [App\Tests\Behat\AngelContext]
+            contexts: [App\Context\AngelContext]
     extensions:
         FriendsOfBehat\SymfonyExtension: ~
         DMore\ChromeExtension\Behat\ServiceContainer\ChromeExtension: ~
@@ -13,4 +13,3 @@ default:
                 default:
                     chrome:
                         api_url: 'http://localhost:9222'
-#                        method: POST
