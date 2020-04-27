@@ -4,6 +4,7 @@
 namespace App\Context;
 
 
+use App\Repository\CompanyRepository;
 use Behat\Behat\Context\Context;
 use App\Entity\Company;
 use Behat\Mink\Session;
@@ -15,7 +16,7 @@ use Symfony\Component\HttpKernel\KernelInterface;
 
 class AngelContext implements Context
 {
-    const MAX_NUMBER_COMPANIES_PER_REQUEST = 400;
+    const MAX_NUMBER_COMPANIES_PER_REQUEST = 20;
     /**
      * @var Session
      */
@@ -32,6 +33,10 @@ class AngelContext implements Context
      * @var LoggerInterface
      */
     private $angelLogger;
+    /**
+     * @var CompanyRepository
+     */
+    private $companyRepository;
 
     /**
      * AngelContext constructor.
@@ -39,17 +44,20 @@ class AngelContext implements Context
      * @param KernelInterface $kernel
      * @param EntityManagerInterface $em
      * @param LoggerInterface $angelLogger
+     * @param CompanyRepository $companyRepository
      */
     public function __construct(
         Session $session,
         KernelInterface $kernel,
         EntityManagerInterface $em,
-        LoggerInterface $angelLogger)
+        LoggerInterface $angelLogger,
+        CompanyRepository $companyRepository)
     {
         $this->session = $session;
         $this->kernel = $kernel;
         $this->em = $em;
         $this->angelLogger = $angelLogger;
+        $this->companyRepository = $companyRepository;
     }
 
     /**
@@ -58,6 +66,10 @@ class AngelContext implements Context
     public function iAmOnTheMainPage()
     {
         $this->session->visit('https://angel.co/companies');
+
+        $statusCode = $this->session->getStatusCode();
+        $this->angelLogger->info('Status code: ' .$statusCode);
+
         $this->session->getDriver()->wait(10000, "document.getElementsByClassName('more')");
         $this->angelLogger->info('Start the process');
         $this->startExecution();
@@ -70,7 +82,7 @@ class AngelContext implements Context
 
     protected function loopLocations()
     {
-        $locations = ['Miami', 'Dallas'];
+        $locations = ['Minsk', 'Istanbul'];
         $locationsInputField = $this->session->getDriver()->find('//*[@id="location"]');
         if ($locationsInputField) {
             foreach ($locations as $locationName) {
@@ -279,7 +291,7 @@ class AngelContext implements Context
 
     protected function parseAndSave($nameSuffix)
     {
-        $this->angelLogger->info('Parsing and saving has been initiated');
+        $this->angelLogger->info('Parsing and saving have been initiated');
 
         $path = $this->getContainer()->getParameter('save_path');
         $nameSuffix = strtolower($nameSuffix);
@@ -307,7 +319,7 @@ class AngelContext implements Context
 
         foreach ($arr as $ar) {
             try {
-                $this->save($ar);
+                $this->checkAndSave($ar);
             } catch (\Throwable $exception) {
                 $this->angelLogger->error('Error occurred while saving with exception: ' . $exception->getMessage() . ' on ');
                 exit();
@@ -361,6 +373,27 @@ class AngelContext implements Context
         }
         if ($value) {
             return $value[0];
+        }
+    }
+
+    protected function checkAndSave($data)
+    {
+        $website = preg_replace("/[^A-Za-z0-9\-.]/", '', $data['Website']);
+        if ($website == '' || $website == '-' || $website == 'Website' || $website == 'website') {
+            $companyWithGivenName = $this->companyRepository->findByName($data['Name']);
+            if (!$companyWithGivenName) {
+                $this->save($data);
+            } elseif ($companyWithGivenName) {
+                $companyLocation = $companyWithGivenName[0]->getLocation();
+                if ($companyLocation !== $data['Location']) {
+                    $this->save($data);
+                }
+            }
+        } else {
+            $companyWithGivenWebsite = $this->companyRepository->findByWebsite($website);
+            if (!$companyWithGivenWebsite) {
+                $this->save($data);
+            }
         }
     }
 

@@ -38,6 +38,16 @@ class CompanyRepository extends ServiceEntityRepository
         ;
     }
 
+    public function findByWebsite($website)
+    {
+        return $this->createQueryBuilder('c')
+            ->where('c.website = :website')
+            ->setParameter('website', $website)
+            ->getQuery()
+            ->getResult()
+            ;
+    }
+
     // /**
     //  * @return Company[] Returns an array of Company objects
     //  */
