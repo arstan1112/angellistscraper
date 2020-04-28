@@ -4,7 +4,11 @@
 namespace App\Context;
 
 
+use App\Entity\Location;
+use App\Entity\Market;
 use App\Repository\CompanyRepository;
+use App\Repository\LocationRepository;
+use App\Repository\MarketRepository;
 use Behat\Behat\Context\Context;
 use App\Entity\Company;
 use Behat\Mink\Session;
@@ -16,7 +20,7 @@ use Symfony\Component\HttpKernel\KernelInterface;
 
 class AngelContext implements Context
 {
-    const MAX_NUMBER_COMPANIES_PER_REQUEST = 20;
+    const MAX_NUMBER_COMPANIES_PER_REQUEST = 2000;
     /**
      * @var Session
      */
@@ -37,6 +41,14 @@ class AngelContext implements Context
      * @var CompanyRepository
      */
     private $companyRepository;
+    /**
+     * @var LocationRepository
+     */
+    private $locationRepository;
+    /**
+     * @var MarketRepository
+     */
+    private $marketRepository;
 
     /**
      * AngelContext constructor.
@@ -45,19 +57,25 @@ class AngelContext implements Context
      * @param EntityManagerInterface $em
      * @param LoggerInterface $angelLogger
      * @param CompanyRepository $companyRepository
+     * @param LocationRepository $locationRepository
+     * @param MarketRepository $marketRepository
      */
     public function __construct(
         Session $session,
         KernelInterface $kernel,
         EntityManagerInterface $em,
         LoggerInterface $angelLogger,
-        CompanyRepository $companyRepository)
+        CompanyRepository $companyRepository,
+        LocationRepository $locationRepository,
+        MarketRepository $marketRepository)
     {
         $this->session = $session;
         $this->kernel = $kernel;
         $this->em = $em;
         $this->angelLogger = $angelLogger;
         $this->companyRepository = $companyRepository;
+        $this->locationRepository = $locationRepository;
+        $this->marketRepository = $marketRepository;
     }
 
     /**
@@ -77,18 +95,62 @@ class AngelContext implements Context
 
     private function startExecution()
     {
+        $this->loopPagesParseSave('initial');
         $this->loopLocations();
+    }
+
+    protected function restartExecution()
+    {
+        $totalCompaniesInDb = $this->companyRepository->findAll();
+        $totalCompanies = $this->countTotalCompanies();
+        if ($totalCompanies > count($totalCompaniesInDb)) {
+            $this->angelLogger->info('Total companies checked in DB, total: ' . count($totalCompaniesInDb));
+            $this->loopLocations();
+        }
+        if (count($totalCompaniesInDb) < 200) {
+            $this->angelLogger->info('Restart is executed');
+            $this->loopLocations();
+        }
     }
 
     protected function loopLocations()
     {
-        $locations = ['Minsk', 'Istanbul'];
+        $locations = $this->locationRepository->findAllUnchecked();
         $locationsInputField = $this->session->getDriver()->find('//*[@id="location"]');
         if ($locationsInputField) {
-            foreach ($locations as $locationName) {
-                $dropDownMenu = $this->setFilterName('locations', 'location', '3', $locationName);
+            $counter = 1;
+            foreach ($locations as $location) {
+                $dropDownMenu = $this->setFilterName('locations', 'location', '3', $location->getName());
                 if ($dropDownMenu) {
-                    $this->scrapeWithLocations($locationName);
+                    $this->scrapeWithLocations($location->getName());
+                }
+                $location->setStatus('checked');
+                $this->em->flush();
+                $counter++;
+                if ($counter==3) {
+                    break;
+                }
+            }
+        }
+        $this->restartExecution();
+    }
+
+    protected function loopMarkets()
+    {
+        $markets = $this->marketRepository->findAllUnchecked();
+        $marketsInputField = $this->session->getDriver()->find('//*[@id="market"]');
+        if ($marketsInputField) {
+            $counter = 1;
+            foreach ($markets as $market) {
+                $dropDownMenu = $this->setFilterName('markets', 'market', '4', $market->getName());
+                if ($dropDownMenu) {
+                    $this->scrapeWithMarkets($market->getName());
+                    $market->setStatus('checked');
+                    $this->em->flush();
+                }
+                $counter++;
+                if ($counter==3) {
+                    break;
                 }
             }
         }
@@ -102,11 +164,29 @@ class AngelContext implements Context
             $totalCompanies = $this->countTotalCompanies();
             if ($totalCompanies > self::MAX_NUMBER_COMPANIES_PER_REQUEST) {
                 $this->angelLogger->info('Type selected successfully');
+                $this->loopPagesParseSave($type);
+                $this->loopTechs();
+            } elseif ($totalCompanies !== 0) {
+                $this->loopPagesParseSave($type);
+            }
+            $this->removeFilter('3');
+        }
+    }
+
+    protected function loopTechs()
+    {
+        $techs = ['Javascript', 'Python', 'HTML5', 'CSS', 'Java'];
+        foreach ($techs as $tech) {
+            $this->selectFilter('teches', $tech);
+            $totalCompanies = $this->countTotalCompanies();
+            if ($totalCompanies > self::MAX_NUMBER_COMPANIES_PER_REQUEST) {
+                $this->angelLogger->info('Tech selected successfully');
+                $this->loopPagesParseSave($tech);
                 $this->loopStages();
             } elseif ($totalCompanies !== 0) {
-                $this->loopParseSave($type);
+                $this->loopPagesParseSave($tech);
             }
-            $this->removeFilter('2');
+            $this->removeFilter('4');
         }
     }
 
@@ -115,45 +195,12 @@ class AngelContext implements Context
         $stages = ['Seed', 'Series A', 'Series B', 'Series C', 'Acquired'];
         foreach ($stages as $stage) {
             $this->selectFilter('stages', $stage);
-            $totalCompanies = $this->countTotalCompanies();
-            if ($totalCompanies > self::MAX_NUMBER_COMPANIES_PER_REQUEST) {
-                $this->angelLogger->info('Stage selected successfully');
-//                $this->loopMarkets();
-            } elseif ($totalCompanies !== 0) {
-                $this->loopParseSave($stage);
-            }
+            $this->loopPagesParseSave($stage);
+            $this->removeFilter('5');
         }
     }
 
-    protected function loopMarkets()
-    {
-        $markets = ['Food and Beverages', 'Independent Pharmacies', 'Waste Management', 'Energy Efficiency', 'Small and Medium Businesses', 'Oil and Gas', 'Advertising Platforms', 'Virtualization', 'Restaurants', 'Hospitality', 'Heavy Industry', 'Families', 'Journalism', 'Chemicals', 'E-Commerce', 'Commodities', 'Material Science', 'Credit'];
-        $marketsInputField = $this->session->getDriver()->find('//*[@id="market"]');
-        if ($marketsInputField) {
-            foreach ($markets as $marketName) {
-                $dropDownMenu = $this->setFilterName('markets', 'market', '4', $marketName);
-                if ($dropDownMenu) {
-                    $this->scrapeWithMarkets($marketName);
-                }
-            }
-        }
-    }
-
-    protected function loopTechs()
-    {
-        $techs = ['Security', 'Cloud'];
-        $techsInputField = $this->session->getDriver()->find('//*[@id="tech"]');
-        if ($techsInputField) {
-            foreach ($techs as $techName) {
-                $dropDownMenu = $this->setFilterName('teches', 'tech', '5', $techName);
-                if ($dropDownMenu) {
-                    $this->scrapeWithTechs($techName);
-                }
-            }
-        }
-    }
-
-    protected function scrapeWithLocations($locationName)
+    protected function scrapeWithLocations(string $locationName)
     {
         $this->angelLogger->info('Drop down for locations found');
         $this->session->getDriver()->click('//*[@id="ui-id-3"]/li[1]');
@@ -162,43 +209,28 @@ class AngelContext implements Context
         $totalCompanies = $this->countTotalCompanies();
 
         if ($totalCompanies > self::MAX_NUMBER_COMPANIES_PER_REQUEST) {
-            $this->loopTypes();
+            $this->loopPagesParseSave($locationName);
+            $this->loopMarkets();
         } elseif ($totalCompanies !== 0) {
-            $this->loopParseSave($locationName);
+            $this->loopPagesParseSave($locationName);
         }
         $this->removeAllFilters();
     }
 
-    protected function scrapeWithMarkets($market)
+    protected function scrapeWithMarkets(string $marketName)
     {
         $this->angelLogger->info('Drop down for markets found');
         $this->session->getDriver()->click('//*[@id="ui-id-4"]/li[1]');
         $this->session->getDriver()->wait(10000, "document.getElementsByClassName('more')");
 
         $totalCompanies = $this->countTotalCompanies();
-
         if ($totalCompanies > self::MAX_NUMBER_COMPANIES_PER_REQUEST) {
-            $this->loopTechs();
+            $this->loopPagesParseSave($marketName);
+            $this->loopTypes();
         } elseif ($totalCompanies !== 0) {
-            $this->loopParseSave($market);
+            $this->loopPagesParseSave($marketName);
         }
-        $this->removeFilter('3');
-    }
-
-    protected function scrapeWithTechs($tech)
-    {
-        $this->angelLogger->info('Drop down for techs found');
-        $this->session->getDriver()->click('//*[@id="ui-id-5"]/li[1]');
-        $this->session->getDriver()->wait(10000, "document.getElementsByClassName('more')");
-
-        $totalCompanies = $this->countTotalCompanies();
-
-        if ($totalCompanies > self::MAX_NUMBER_COMPANIES_PER_REQUEST) {
-            $this->angelLogger->info('Tech filter has more than 400 companies');
-        } elseif ($totalCompanies !== 0) {
-            $this->loopParseSave($tech);
-        }
-        $this->removeFilter('4');
+        $this->removeFilter('2');
     }
 
     protected function selectFilter(string $dataAttrMenu, string $dataAttrValue)
@@ -253,20 +285,33 @@ class AngelContext implements Context
         $total = $this->session->getDriver()->find('//*[@class="count"]');
         $totalCompanies = preg_replace("/[^0-9]/", '', $total[1]->getText());
         $totalCompanies = (int)$totalCompanies;
+
         return $totalCompanies;
     }
 
-    protected function loopParseSave($nameSuffix)
+    protected function loopPagesParseSave(string $nameSuffix)
     {
         $this->loopPages();
-        $this->putContentToFile($nameSuffix);
+        $this->putContentsToFile($nameSuffix);
         $this->angelLogger->info('Content has been put to the file');
-        $this->parseAndSave($nameSuffix);
+        $arrParsedElements = $this->parseAllElements($this->getXpath($nameSuffix));
+
+        foreach ($arrParsedElements as $ar) {
+            try {
+                $this->saveLocation($ar['Location']);
+                $this->saveMarket($ar['Market']);
+                $this->checkAndSaveCompany($ar);
+            } catch (\Throwable $exception) {
+                $this->angelLogger->error('[Line '.__LINE__.'] Error occurred while saving with exception: ' . $exception->getMessage() . ' on ');
+                exit();
+            }
+        }
+        $this->angelLogger->info('Saving has been finished');
     }
 
     protected function loopPages()
     {
-        for ($page = 1; $page < 3; $page++) {
+        for ($page = 1; $page < 2; $page++) {
             $moreButton = $this->session->getDriver()->find('//*[@class="more"]');
             if ($moreButton) {
                 $this->session->getDriver()->click('//*[@class="more"]');
@@ -277,7 +322,7 @@ class AngelContext implements Context
         }
     }
 
-    protected function putContentToFile($nameSuffix)
+    protected function putContentsToFile(string $nameSuffix)
     {
         $date = new \DateTime();
         $nameSuffix = strtolower($nameSuffix);
@@ -289,7 +334,7 @@ class AngelContext implements Context
         file_put_contents($path . '/' . $name, '<html>' . $this->session->getPage()->getContent() . '</html>');
     }
 
-    protected function parseAndSave($nameSuffix)
+    protected function getXpath(string $nameSuffix)
     {
         $this->angelLogger->info('Parsing and saving have been initiated');
 
@@ -304,9 +349,12 @@ class AngelContext implements Context
         $html5 = new HTML5();
         $dom = $html5->loadHTML($html);
 
-        $xpath = new \DOMXPath($dom);
-        $elements = $xpath->query('//*[@class="base startup"]');
+        return new \DOMXPath($dom);
+    }
 
+    protected function parseAllElements(object $xpath)
+    {
+        $elements = $xpath->query('//*[@class="base startup"]');
         $arr = [];
         $counter = 0;
         if (!is_null($elements)) {
@@ -317,15 +365,7 @@ class AngelContext implements Context
         }
         $this->angelLogger->info('Parsing has been finished');
 
-        foreach ($arr as $ar) {
-            try {
-                $this->checkAndSave($ar);
-            } catch (\Throwable $exception) {
-                $this->angelLogger->error('Error occurred while saving with exception: ' . $exception->getMessage() . ' on ');
-                exit();
-            }
-        }
-        $this->angelLogger->info('Saving has been finished');
+        return $arr;
     }
 
     protected function parse(object $xpath, array $arr, int $counter)
@@ -376,28 +416,77 @@ class AngelContext implements Context
         }
     }
 
-    protected function checkAndSave($data)
+    protected function saveLocation(string $locationName)
     {
-        $website = preg_replace("/[^A-Za-z0-9\-.]/", '', $data['Website']);
-        if ($website == '' || $website == '-' || $website == 'Website' || $website == 'website') {
-            $companyWithGivenName = $this->companyRepository->findByName($data['Name']);
-            if (!$companyWithGivenName) {
-                $this->save($data);
-            } elseif ($companyWithGivenName) {
-                $companyLocation = $companyWithGivenName[0]->getLocation();
-                if ($companyLocation !== $data['Location']) {
-                    $this->save($data);
+        if ($locationName) {
+            $locationName = trim($locationName);
+            if ($locationName !== '-' && $locationName !== '') {
+                $locationInDb = $this->locationRepository->findByName($locationName);
+                if (!$locationInDb) {
+                    $location = new Location();
+                    $location->setName($locationName);
+                    $location->setStatus('unchecked');
+
+                    $this->em->persist($location);
+                    $this->em->flush();
+                    $this->angelLogger->info('Location saved');
                 }
-            }
-        } else {
-            $companyWithGivenWebsite = $this->companyRepository->findByWebsite($website);
-            if (!$companyWithGivenWebsite) {
-                $this->save($data);
             }
         }
     }
 
-    protected function save($data)
+    protected function saveMarket(string $marketName)
+    {
+        if ($marketName) {
+            $marketName = trim($marketName);
+            if ($marketName !== '-' && $marketName !== '') {
+                $marketInDb = $this->marketRepository->findByName($marketName);
+                if (!$marketInDb) {
+                    $market = new Market();
+                    $market->setName($marketName);
+                    $market->setStatus('unchecked');
+
+                    $this->em->persist($market);
+                    $this->em->flush();
+                    $this->angelLogger->info('Market saved');
+                }
+            }
+        }
+    }
+
+    protected function checkAndSaveCompany(array $data)
+    {
+        if ($data['Name']) {
+            if ($data['Website']) {
+                $website = preg_replace("/[^A-Za-z0-9\-.]/", '', $data['Website']);
+                if ($website == '' || $website == '-' || $website == 'Website' || $website == 'website') {
+                    $this->checkForCompanyNameAndSave($data);
+                } else {
+                    $companyWebsiteInDb = $this->companyRepository->findByWebsite($website);
+                    if (!$companyWebsiteInDb) {
+                        $this->saveCompany($data);
+                    }
+                }
+            } else {
+                $this->checkForCompanyNameAndSave($data);
+            }
+        }
+    }
+
+    protected function checkForCompanyNameAndSave(array $data)
+    {
+        $companyNameInDb = $this->companyRepository->findByName($data['Name']);
+        if (!$companyNameInDb) {
+            $this->saveCompany($data);
+        } elseif ($companyNameInDb) {
+            $companyLocation = $companyNameInDb[0]->getLocation();
+            if ($companyLocation !== $data['Location']) {
+                $this->saveCompany($data);
+            }
+        }
+    }
+
+    protected function saveCompany(array $data)
     {
         $company = new Company();
         $company->setName($data['Name']);
