@@ -95,22 +95,22 @@ class AngelContext implements Context
 
     private function startExecution()
     {
-        $this->loopPagesParseSave('initial');
+        $this->loopPagesParseSave();
         $this->loopLocations();
+        $this->restartExecution();
     }
 
     protected function restartExecution()
     {
-        $totalCompaniesInDb = $this->companyRepository->findAll();
         $totalCompanies = $this->countTotalCompanies();
-        if ($totalCompanies > count($totalCompaniesInDb)) {
-            $this->angelLogger->info('Total companies checked in DB, total: ' . count($totalCompaniesInDb));
+        $this->angelLogger->info('Restart is called');
+
+        do {
             $this->loopLocations();
-        }
-        if (count($totalCompaniesInDb) < 200) {
-            $this->angelLogger->info('Restart is executed');
-            $this->loopLocations();
-        }
+            $totalCompaniesInDb = $this->companyRepository->findAll();
+            $this->angelLogger->info('Total companies checked in DB,   total: ' . count($totalCompaniesInDb));
+            $this->angelLogger->info('Total companies checked in site, total: ' . $totalCompanies);
+        } while (10 > count($totalCompaniesInDb));
     }
 
     protected function loopLocations()
@@ -122,17 +122,25 @@ class AngelContext implements Context
             foreach ($locations as $location) {
                 $dropDownMenu = $this->setFilterName('locations', 'location', '3', $location->getName());
                 if ($dropDownMenu) {
-                    $this->scrapeWithLocations($location->getName());
+                    if (!$this->scrapeWithLocations()) {
+                        break;
+                    } else {
+                        $location->setStatus('checked');
+                        $this->em->flush();
+                    }
+                } else {
+                    $this->session->restart();
+                    $this->session->visit('http://www.angellist.loc/list');
+                    $this->session->getDriver()->wait(10000, "document.getElementsByClassName('more')");
+                    $this->restartExecution();
                 }
-                $location->setStatus('checked');
-                $this->em->flush();
+
                 $counter++;
                 if ($counter==3) {
                     break;
                 }
             }
         }
-        $this->restartExecution();
     }
 
     protected function loopMarkets()
@@ -144,7 +152,7 @@ class AngelContext implements Context
             foreach ($markets as $market) {
                 $dropDownMenu = $this->setFilterName('markets', 'market', '4', $market->getName());
                 if ($dropDownMenu) {
-                    $this->scrapeWithMarkets($market->getName());
+                    $this->scrapeWithMarkets();
                     $market->setStatus('checked');
                     $this->em->flush();
                 }
@@ -164,10 +172,10 @@ class AngelContext implements Context
             $totalCompanies = $this->countTotalCompanies();
             if ($totalCompanies > self::MAX_NUMBER_COMPANIES_PER_REQUEST) {
                 $this->angelLogger->info('Type selected successfully');
-                $this->loopPagesParseSave($type);
+                $this->loopPagesParseSave();
                 $this->loopTechs();
             } elseif ($totalCompanies !== 0) {
-                $this->loopPagesParseSave($type);
+                $this->loopPagesParseSave();
             }
             $this->removeFilter('3');
         }
@@ -181,10 +189,10 @@ class AngelContext implements Context
             $totalCompanies = $this->countTotalCompanies();
             if ($totalCompanies > self::MAX_NUMBER_COMPANIES_PER_REQUEST) {
                 $this->angelLogger->info('Tech selected successfully');
-                $this->loopPagesParseSave($tech);
+                $this->loopPagesParseSave();
                 $this->loopStages();
             } elseif ($totalCompanies !== 0) {
-                $this->loopPagesParseSave($tech);
+                $this->loopPagesParseSave();
             }
             $this->removeFilter('4');
         }
@@ -195,40 +203,43 @@ class AngelContext implements Context
         $stages = ['Seed', 'Series A', 'Series B', 'Series C', 'Acquired'];
         foreach ($stages as $stage) {
             $this->selectFilter('stages', $stage);
-            $this->loopPagesParseSave($stage);
+            $this->loopPagesParseSave();
             $this->removeFilter('5');
         }
     }
 
-    protected function scrapeWithLocations(string $locationName)
+    protected function scrapeWithLocations()
     {
-        $this->angelLogger->info('Drop down for locations found');
-        $this->session->getDriver()->click('//*[@id="ui-id-3"]/li[1]');
+        try {
+            $this->session->getDriver()->click('//*[@id="ui-id-3"]/li[1]');
+        } catch (\Exception $exception) {
+            $this->angelLogger->error('Click drop down did not work with exception: ' .$exception->getMessage());
+            return false;
+        }
         $this->session->getDriver()->wait(10000, "document.getElementsByClassName('more')");
 
         $totalCompanies = $this->countTotalCompanies();
 
         if ($totalCompanies > self::MAX_NUMBER_COMPANIES_PER_REQUEST) {
-            $this->loopPagesParseSave($locationName);
+            $this->loopPagesParseSave();
             $this->loopMarkets();
         } elseif ($totalCompanies !== 0) {
-            $this->loopPagesParseSave($locationName);
+            $this->loopPagesParseSave();
         }
         $this->removeAllFilters();
     }
 
-    protected function scrapeWithMarkets(string $marketName)
+    protected function scrapeWithMarkets()
     {
-        $this->angelLogger->info('Drop down for markets found');
         $this->session->getDriver()->click('//*[@id="ui-id-4"]/li[1]');
         $this->session->getDriver()->wait(10000, "document.getElementsByClassName('more')");
 
         $totalCompanies = $this->countTotalCompanies();
         if ($totalCompanies > self::MAX_NUMBER_COMPANIES_PER_REQUEST) {
-            $this->loopPagesParseSave($marketName);
+            $this->loopPagesParseSave();
             $this->loopTypes();
         } elseif ($totalCompanies !== 0) {
-            $this->loopPagesParseSave($marketName);
+            $this->loopPagesParseSave();
         }
         $this->removeFilter('2');
     }
@@ -266,13 +277,13 @@ class AngelContext implements Context
         $this->session->getDriver()->setValue('//*[@id="' . $id . '"]', $filterName);
         $this->session->getDriver()->wait(5000, "document.getElementsByClassName('more')");
 
-        $dropDownMenu = $this->session->getDriver()->find('//*[@id="ui-id-' . $nodeNumber . '"]/li[1]');
-
-        if ($dropDownMenu) {
+        try {
+            $this->session->getDriver()->find('//*[@id="ui-id-' . $nodeNumber . '"]/li[1]');
             return true;
-        } else {
-            return false;
+        } catch (\Exception $exception) {
+            $this->angelLogger->error('Drop down was not found with exception: ' .$exception->getMessage());
         }
+        return false;
     }
 
     protected function getContainer()
@@ -289,12 +300,12 @@ class AngelContext implements Context
         return $totalCompanies;
     }
 
-    protected function loopPagesParseSave(string $nameSuffix)
+    protected function loopPagesParseSave()
     {
         $this->loopPages();
-        $this->putContentsToFile($nameSuffix);
+        $this->putContentsToFile();
         $this->angelLogger->info('Content has been put to the file');
-        $arrParsedElements = $this->parseAllElements($this->getXpath($nameSuffix));
+        $arrParsedElements = $this->parseAllElements($this->getXpath());
 
         foreach ($arrParsedElements as $ar) {
             try {
@@ -322,26 +333,20 @@ class AngelContext implements Context
         }
     }
 
-    protected function putContentsToFile(string $nameSuffix)
+    protected function putContentsToFile()
     {
-        $date = new \DateTime();
-        $nameSuffix = strtolower($nameSuffix);
-        $nameSuffix = preg_replace("/[^a-z\-]/", '', $nameSuffix);
-
         $path = $this->getContainer()->getParameter('save_path');
-        $name = 'angellist_' . $nameSuffix . '.html';
+        $name = 'angellist.html';
 
         file_put_contents($path . '/' . $name, '<html>' . $this->session->getPage()->getContent() . '</html>');
     }
 
-    protected function getXpath(string $nameSuffix)
+    protected function getXpath()
     {
         $this->angelLogger->info('Parsing and saving have been initiated');
 
         $path = $this->getContainer()->getParameter('save_path');
-        $nameSuffix = strtolower($nameSuffix);
-        $nameSuffix = preg_replace("/[^a-z\-]/", '', $nameSuffix);
-        $name = 'angellist_' . $nameSuffix . '.html';
+        $name = 'angellist.html';
 
         $htmlFile = $path . '/' . $name;
         $html = file_get_contents($htmlFile);
