@@ -25,7 +25,7 @@ class LocationRepository extends ServiceEntityRepository
             ->where('l.name = :name')
             ->setParameter('name', $name)
             ->getQuery()
-            ->getResult()
+            ->getOneOrNullResult()
             ;
     }
 

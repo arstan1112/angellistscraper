@@ -22,9 +22,9 @@ class Market
     private $name;
 
     /**
-     * @ORM\Column(type="string", length=255, nullable=true)
+     * @ORM\Column(type="integer", nullable=true)
      */
-    private $status;
+    private $score;
 
     public function getId(): ?int
     {
@@ -43,15 +43,19 @@ class Market
         return $this;
     }
 
-    public function getStatus(): ?string
+    /**
+     * @return mixed
+     */
+    public function getScore()
     {
-        return $this->status;
+        return $this->score;
     }
 
-    public function setStatus(?string $status): self
+    /**
+     * @param mixed $score
+     */
+    public function setScore($score): void
     {
-        $this->status = $status;
-
-        return $this;
+        $this->score = $score;
     }
 }

@@ -25,15 +25,14 @@ class MarketRepository extends ServiceEntityRepository
             ->where('m.name = :name')
             ->setParameter('name', $name)
             ->getQuery()
-            ->getResult()
+            ->getOneOrNullResult()
             ;
     }
 
-    public function findAllUnchecked()
+    public function findWithScoresDesc()
     {
         return $this->createQueryBuilder('m')
-            ->where('m.status = :unchecked')
-            ->setParameter('unchecked', 'unchecked')
+            ->orderBy('m.score', 'DESC')
             ->getQuery()
             ->getResult()
             ;

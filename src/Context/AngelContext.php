@@ -20,7 +20,7 @@ use Symfony\Component\HttpKernel\KernelInterface;
 
 class AngelContext implements Context
 {
-    const MAX_NUMBER_COMPANIES_PER_REQUEST = 2000;
+    const MAX_COMPANIES_PER_REQUEST = 2000;
 
     const MAX_PAGES = 2;
     /**
@@ -51,6 +51,15 @@ class AngelContext implements Context
      * @var MarketRepository
      */
     private $marketRepository;
+    /**
+     * @var integer
+     */
+    private $totalCompaniesForLocation;
+
+    /**
+     * @var string
+     */
+    private $rowNumberForDropDownList;
 
     /**
      * AngelContext constructor.
@@ -98,11 +107,13 @@ class AngelContext implements Context
     {
         $this->session->restart();
         $this->session->visit('https://angel.co/companies');
+        $this->angelLogger->alert('Session is restarted');
         $this->restartExecution();
     }
 
     private function startExecution()
     {
+        $this->rowNumberForDropDownList = '1';
         $this->loopPagesParseSave();
         $this->loopLocations();
         $this->restartExecution();
@@ -122,22 +133,34 @@ class AngelContext implements Context
         } while (100 > count($totalCompaniesInDb));
     }
 
+    protected function uncheckLocations()
+    {
+        $allLocations = $this->locationRepository->findAll();
+        foreach ($allLocations as $location) {
+            $this->checkEntityManager();
+            $location->setStatus('unchecked');
+            $this->em->flush();
+        }
+        $this->rowNumberForDropDownList = strval(((int)$this->rowNumberForDropDownList + 1));
+
+        return $allLocations;
+    }
+
     protected function loopLocations()
     {
         $locations = $this->locationRepository->findAllUnchecked();
+        if (!$locations) {
+            $locations = $this->uncheckLocations();
+        }
         shuffle($locations);
         $counter = 1;
         if (!empty($locations)) {
             foreach ($locations as $location) {
                 if ($this->setFilterName('locations', 'location', $location->getName())) {
                     if ($this->scrapeWithLocations()) {
-                        try {
-                            $location->setStatus('checked');
-                            $this->em->flush();
-                        } catch (\Exception $exception) {
-                            $this->angelLogger->error('[Line '.__LINE__.'] Error occurred while setting status to location: ' .$location->getName());
-                        }
-
+                        $this->checkEntityManager();
+                        $location->setStatus('checked');
+                        $this->em->flush();
                     } else {
                         if ($this->removeAllFilters()) {
                             break;
@@ -156,16 +179,22 @@ class AngelContext implements Context
 
     protected function loopMarkets()
     {
-        $markets = $this->marketRepository->findAllUnchecked();
-        shuffle($markets);
+        $markets = $this->marketRepository->findWithScoresDesc();
         $counter = 1;
         if (!empty($markets)) {
             foreach ($markets as $market) {
                 if ($this->setFilterName('markets', 'market', $market->getName())) {
-                    if ($this->scrapeWithMarkets()) {
-                        $market->setStatus('checked');
-                        $this->em->flush();
-                    } else {
+                    if (!$this->scrapeWithMarkets()) {
+                        $totalCompaniesForMarket = $this->countTotalCompanies();
+                        if (!$totalCompaniesForMarket) {
+                            break;
+                        }
+                        $this->angelLogger->info('[Line '.__LINE__.'] Total co for market is: ' .$totalCompaniesForMarket);
+                        $this->totalCompaniesForLocation = $this->totalCompaniesForLocation - $totalCompaniesForMarket;
+                        $this->angelLogger->info('[Line '.__LINE__.'] Total co for location in market: ' .$this->totalCompaniesForLocation);
+                        if ($this->totalCompaniesForLocation < 1) {
+                            break;
+                        }
                         if ($this->removeFilter('markets')) {
                             break;
                         } else {
@@ -190,7 +219,7 @@ class AngelContext implements Context
                 if (!$totalCompanies) {
                     break;
                 }
-                if ($totalCompanies > self::MAX_NUMBER_COMPANIES_PER_REQUEST) {
+                if ($totalCompanies > self::MAX_COMPANIES_PER_REQUEST) {
                     $this->loopPagesParseSave();
                     $this->loopTechs();
                 } elseif ($totalCompanies !== 0) {
@@ -210,7 +239,7 @@ class AngelContext implements Context
                 if (!$totalCompanies) {
                     break;
                 }
-                if ($totalCompanies > self::MAX_NUMBER_COMPANIES_PER_REQUEST) {
+                if ($totalCompanies > self::MAX_COMPANIES_PER_REQUEST) {
                     $this->loopPagesParseSave();
                     $this->loopStages();
                 } elseif ($totalCompanies !== 0) {
@@ -234,16 +263,17 @@ class AngelContext implements Context
 
     protected function scrapeWithLocations()
     {
-        if ($this->clickDropDown('1')) {
-            $totalCompanies = $this->countTotalCompanies();
-            if (!$totalCompanies) {
+        if ($this->clickDropDownList('1')) {
+            $this->totalCompaniesForLocation = $this->countTotalCompanies();
+            if (!$this->totalCompaniesForLocation) {
                 return false;
             }
-            if ($totalCompanies > self::MAX_NUMBER_COMPANIES_PER_REQUEST) {
+            $this->angelLogger->info('[Line '.__LINE__.'] Total co for location is: ' .$this->totalCompaniesForLocation);
+            if ($this->totalCompaniesForLocation > self::MAX_COMPANIES_PER_REQUEST) {
                 if ($this->loopPagesParseSave()) {
                     $this->loopMarkets();
                 }
-            } elseif ($totalCompanies !== 0) {
+            } elseif ($this->totalCompaniesForLocation !== 0) {
                 $this->loopPagesParseSave();
             }
 
@@ -257,36 +287,14 @@ class AngelContext implements Context
         return false;
     }
 
-    protected function clickDropDown(string $nodeId)
-    {
-        try {
-            $this->session->getDriver()->wait(4000, "document.getElementsByClassName('more')");
-            $this->session->getDriver()->click('//*[@id="ui-id-'.$nodeId.'"]/li[1]');
-            $this->session->getDriver()->wait(10000, "document.getElementsByClassName('more')");
-            return true;
-        } catch (\Exception $exception) {
-            try {
-                $nodeId = ((int)$nodeId+2);
-                $nodeId = strval($nodeId);
-                $this->session->getDriver()->wait(4000, "document.getElementsByClassName('more')");
-                $this->session->getDriver()->click('//*[@id="ui-id-'.$nodeId.'"]/li[1]');
-                $this->session->getDriver()->wait(10000, "document.getElementsByClassName('more')");
-                return true;
-            } catch (\Exception $exception) {
-                $this->angelLogger->error('[Line '.__LINE__.'] Could not click drop down for locations with exception: ' .$exception->getMessage());
-                return false;
-            }
-        }
-    }
-
     protected function scrapeWithMarkets()
     {
-        if ($this->clickDropDown('2')) {
+        if ($this->clickDropDownList('2')) {
             $totalCompanies = $this->countTotalCompanies();
             if (!$totalCompanies) {
                 return false;
             }
-            if ($totalCompanies > self::MAX_NUMBER_COMPANIES_PER_REQUEST) {
+            if ($totalCompanies > self::MAX_COMPANIES_PER_REQUEST) {
                 if ($this->loopPagesParseSave()) {
                     $this->loopTypes();
                 }
@@ -300,6 +308,33 @@ class AngelContext implements Context
         }
 
         return false;
+    }
+
+    protected function clickDropDownList(string $nodeId)
+    {
+        if ($nodeId == '1') {
+            $row = $this->rowNumberForDropDownList;
+        } else {
+            $row = '1';
+        }
+        try {
+            $this->session->getDriver()->wait(4000, "document.getElementsByClassName('more')");
+            $this->session->getDriver()->click('//*[@id="ui-id-' . $nodeId . '"]/li[' . $row . ']');
+            $this->session->getDriver()->wait(10000, "document.getElementsByClassName('more')");
+            return true;
+        } catch (\Exception $exception) {
+            try {
+                $nodeId = ((int)$nodeId+2);
+                $nodeId = strval($nodeId);
+                $this->session->getDriver()->wait(4000, "document.getElementsByClassName('more')");
+                $this->session->getDriver()->click('//*[@id="ui-id-' . $nodeId . '"]/li[' . $row . ']');
+                $this->session->getDriver()->wait(10000, "document.getElementsByClassName('more')");
+                return true;
+            } catch (\Exception $exception) {
+                $this->angelLogger->error('[Line '.__LINE__.'] Could not click drop down for locations with exception: ' .$exception->getMessage());
+                return false;
+            }
+        }
     }
 
     protected function selectFilter(string $dataAttrMenu, string $dataAttrValue)
@@ -326,8 +361,8 @@ class AngelContext implements Context
             return true;
         } catch (\Exception $exception) {
             $this->angelLogger->error('[Line '.__LINE__.'] Could not remove all filters with exception: ' .$exception->getMessage());
+            return false;
         }
-        return false;
     }
 
     protected function removeFilter(string $dataKeyName)
@@ -335,29 +370,27 @@ class AngelContext implements Context
         try {
             $this->session->getDriver()->wait(6000, "document.getElementsByClassName('more')");
             $this->session->getDriver()->click('//*[@data-key="' . $dataKeyName . '"]');
-            $this->session->getDriver()->wait(4000, "document.getElementsByClassName('more')");
+            $this->session->getDriver()->wait(6000, "document.getElementsByClassName('more')");
             return true;
         } catch (\Exception $exception) {
             $this->angelLogger->error('[Line ' . __LINE__ . '] Could not remove filter with exception: ' . $exception->getMessage());
+            return false;
         }
-
-        return false;
     }
 
     protected function setFilterName(string $dataAttr, string $idName, string $filterName)
     {
         try {
-            $this->session->getDriver()->wait(3000, "document.getElementsByClassName('more')");
+            $this->session->getDriver()->wait(4000, "document.getElementsByClassName('more')");
             $this->session->getDriver()->mouseOver('//*[@data-menu="' . $dataAttr . '"]');
-            $this->session->getDriver()->wait(3000, "document.getElementsByClassName('more')");
+            $this->session->getDriver()->wait(4000, "document.getElementsByClassName('more')");
             $this->session->getDriver()->setValue('//*[@id="' . $idName . '"]', $filterName);
             $this->session->getDriver()->wait(5000, "document.getElementsByClassName('more')");
             return true;
         } catch (\Exception $exception) {
             $this->angelLogger->error('[Line '.__LINE__.'] Mouseover or set value in input did not work with exception: ' . $exception->getMessage());
+            return false;
         }
-
-        return false;
     }
 
     protected function getContainer()
@@ -406,7 +439,7 @@ class AngelContext implements Context
     {
         for ($page = 1; $page < self::MAX_PAGES; $page++) {
             try {
-                $this->session->getDriver()->wait(10000, "document.getElementsByClassName('more')");
+                $this->session->getDriver()->wait(7000, "document.getElementsByClassName('more')");
                 $this->session->getDriver()->click('//*[@class="more"]');
                 $this->session->getDriver()->wait(10000, "document.getElementsByClassName('more')");
             } catch (\Exception $exception) {
@@ -512,10 +545,7 @@ class AngelContext implements Context
                     $location->setName($locationName);
                     $location->setStatus('unchecked');
 
-                    if (!$this->em->isOpen()) {
-                        $this->em->getConnection();
-                        $this->em->getConfiguration();
-                    }
+                    $this->checkEntityManager();
                     $this->em->persist($location);
                     $this->em->flush();
                 }
@@ -529,16 +559,17 @@ class AngelContext implements Context
             $marketName = trim($marketName);
             if ($marketName !== '-' && $marketName !== '') {
                 $marketInDb = $this->marketRepository->findByName($marketName);
+
+                $this->checkEntityManager();
                 if (!$marketInDb) {
                     $market = new Market();
                     $market->setName($marketName);
-                    $market->setStatus('unchecked');
-
-                    if (!$this->em->isOpen()) {
-                        $this->em->getConnection();
-                        $this->em->getConfiguration();
-                    }
+                    $market->setScore(0);
                     $this->em->persist($market);
+                    $this->em->flush();
+                } elseif ($marketInDb) {
+                    $marketScore = $marketInDb->getScore();
+                    $marketInDb->setScore($marketScore+1);
                     $this->em->flush();
                 }
             }
@@ -570,10 +601,13 @@ class AngelContext implements Context
         if (!$companyNameInDb) {
             $this->saveCompany($data);
         } elseif ($companyNameInDb) {
-            $companyLocation = $companyNameInDb[0]->getLocation();
-            if ($companyLocation !== $data['Location']) {
-                $this->saveCompany($data);
+            foreach ($companyNameInDb as $company) {
+                $companyLocation = $company->getLocation();
+                if ($companyLocation == $data['Location']) {
+                    return;
+                }
             }
+            $this->saveCompany($data);
         }
     }
 
@@ -588,11 +622,18 @@ class AngelContext implements Context
         $company->setStage($data['Stage']);
         $company->setRaised((int)$data['Total Raised']);
 
-        if (!$this->em->isOpen()) {
-            $this->em->getConnection();
-            $this->em->getConfiguration();
-        }
+        $this->checkEntityManager();
         $this->em->persist($company);
         $this->em->flush();
+    }
+
+    protected function checkEntityManager()
+    {
+        if (!$this->em->isOpen()) {
+            $this->em = $this->em->create(
+                $this->em->getConnection(),
+                $this->em->getConfiguration()
+            );
+        }
     }
 }
