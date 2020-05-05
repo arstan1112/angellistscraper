@@ -22,6 +22,11 @@ class Company
     private $name;
 
     /**
+     * @ORM\Column(type="date", nullable=true)
+     */
+    private $joined;
+
+    /**
      * @ORM\Column(type="string", length=255, nullable=true)
      */
     private $location;
@@ -47,7 +52,7 @@ class Company
     private $stage;
 
     /**
-     * @ORM\Column(type="integer", nullable=true)
+     * @ORM\Column(type="bigint", nullable=true)
      */
     private $raised;
 
@@ -138,5 +143,21 @@ class Company
         $this->raised = $raised;
 
         return $this;
+    }
+
+    /**
+     * @return mixed
+     */
+    public function getJoined()
+    {
+        return $this->joined;
+    }
+
+    /**
+     * @param mixed $joined
+     */
+    public function setJoined($joined): void
+    {
+        $this->joined = $joined;
     }
 }
