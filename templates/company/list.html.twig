@@ -13,10 +13,10 @@
                             <div class="col-sm-2" style="color: #0a0a0a">
                                 Name
                             </div>
-                            <div class="col-sm-3" style="color: #0a0a0a">
+                            <div class="col-sm-1" style="color: #0a0a0a">
                                 Joined
                             </div>
-                            <div class="col-sm-3" style="color: #0a0a0a">
+                            <div class="col-sm-2" style="color: #0a0a0a">
                                 Location
                             </div>
                             <div class="col-sm-3" style="color: #0a0a0a">
@@ -31,28 +31,31 @@
                         </div>
                     </a>
                     {% for company in companies %}
-                        <a href="#" class="list-group-item">
+                        <div class="list-group-item">
                             <div class="row">
                                 <div class="col-sm-2">
                                     {{ company.name }}
                                 </div>
-                                <div class="col-sm-3">
-                                    {{ company.joined }}
+                                <div class="col-sm-1">
+                                    {{ company.joined|date('Y-m') }}
                                 </div>
-                                <div class="col-sm-3">
+                                <div class="col-sm-2">
                                     {{ company.location }}
                                 </div>
                                 <div class="col-sm-3">
                                     {{ company.market }}
                                 </div>
                                 <div class="col-sm-2">
-                                    {{ company.website }}
+{#                                    <a href="{{ company.website }}">#}
+                                    <a href="https://{{ company.website }}">
+                                        {{ company.website }}
+                                    </a>
                                 </div>
                                 <div class="col-sm-2">
                                     {{ company.employees }}
                                 </div>
                             </div>
-                        </a>
+                        </div>
                     {% endfor %}
                 </div>
                 <br>

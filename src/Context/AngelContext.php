@@ -20,9 +20,9 @@ use Symfony\Component\HttpKernel\KernelInterface;
 
 class AngelContext implements Context
 {
-    const MAX_COMPANIES_PER_REQUEST = 2000;
+    const MAX_COMPANIES_PER_REQUEST = 400;
 
-    const MAX_PAGES = 2;
+    const MAX_PAGES = 20;
 
     const RECONNECTION_ATTEMPT_MILLISECONDS = 5000;
 
@@ -155,7 +155,7 @@ class AngelContext implements Context
     {
         $this->session->restart();
         $this->session->visit($this->site);
-        $this->angelLogger->alert('Session is restarted');
+        $this->angelLogger->info('Session is restarted');
         $this->loopExecution();
     }
 
@@ -168,9 +168,7 @@ class AngelContext implements Context
             }
             $totalCompaniesInDb = $this->companyRepository->findAll();
             $this->loopLocations();
-            $this->angelLogger->info('Total companies checked in DB,   total: ' . count($totalCompaniesInDb));
-            $this->angelLogger->info('Total companies checked in site, total: ' . $totalCompanies);
-        } while (100 > count($totalCompaniesInDb));
+        } while ($totalCompanies > count($totalCompaniesInDb));
     }
 
     protected function uncheckLocations()
@@ -193,13 +191,12 @@ class AngelContext implements Context
             $locations = $this->uncheckLocations();
         }
         shuffle($locations);
-        $counter = 1;
         if (!empty($locations)) {
             foreach ($locations as $location) {
                 if ($this->setFilterName('locations', 'location', $location->getName())) {
                     if ($this->scrapeWithLocations()) {
                         $this->checkEntityManager();
-                        $location->setStatus('che');
+                        $location->setStatus('checked');
                         $this->em->flush();
                     } else {
                         if ($this->removeAllFilters()) {
@@ -209,10 +206,6 @@ class AngelContext implements Context
                         }
                     }
                 }
-                $counter++;
-                if ($counter == 3) {
-                    break;
-                }
             }
         }
     }
@@ -220,7 +213,6 @@ class AngelContext implements Context
     protected function loopMarkets()
     {
         $markets = $this->marketRepository->findWithScoresDesc();
-        $counter = 1;
         if (!empty($markets)) {
             foreach ($markets as $market) {
                 if ($this->setFilterName('markets', 'market', $market->getName())) {
@@ -229,9 +221,7 @@ class AngelContext implements Context
                         if (!$totalCompaniesForMarket) {
                             break;
                         }
-                        $this->angelLogger->info('[Line ' . __LINE__ . '] Total co for market is: ' . $totalCompaniesForMarket);
                         $this->totalCompaniesForLocation = $this->totalCompaniesForLocation - $totalCompaniesForMarket;
-                        $this->angelLogger->info('[Line ' . __LINE__ . '] Total co for location in market: ' . $this->totalCompaniesForLocation);
                         if ($this->totalCompaniesForLocation < 1) {
                             break;
                         }
@@ -242,17 +232,13 @@ class AngelContext implements Context
                         }
                     }
                 }
-                $counter++;
-                if ($counter == 3) {
-                    break;
-                }
             }
         }
     }
 
     protected function loopTypes()
     {
-        $types = ['Startup', 'VC Firm', 'Private Company', 'SaaS', 'Incubator', 'Mobile App'];
+        $types = ['Private Company', 'SaaS', 'Startup', 'VC Firm', 'Incubator', 'Mobile App'];
         foreach ($types as $type) {
             if ($this->selectFilter('company_types', $type)) {
                 $totalCompanies = $this->countTotalCompanies();
@@ -272,7 +258,7 @@ class AngelContext implements Context
 
     protected function loopTechs()
     {
-        $techs = ['Javascript', 'Python', 'HTML5', 'CSS', 'Java'];
+        $techs = ['Python', 'HTML5', 'Javascript', 'CSS', 'Java'];
         foreach ($techs as $tech) {
             if ($this->selectFilter('teches', $tech)) {
                 $totalCompanies = $this->countTotalCompanies();
@@ -292,7 +278,7 @@ class AngelContext implements Context
 
     protected function loopStages()
     {
-        $stages = ['Seed', 'Series A', 'Series B', 'Series C', 'Acquired'];
+        $stages = ['Seed', 'Series A', 'Acquired', 'Series B', 'Series C'];
         foreach ($stages as $stage) {
             if ($this->selectFilter('stages', $stage)) {
                 $this->loopPagesParseSave();
@@ -308,7 +294,6 @@ class AngelContext implements Context
             if (!$this->totalCompaniesForLocation && $this->totalCompaniesForLocation !== 0) {
                 return false;
             }
-            $this->angelLogger->info('[Line ' . __LINE__ . '] Total co for location is: ' . $this->totalCompaniesForLocation);
             if ($this->totalCompaniesForLocation > self::MAX_COMPANIES_PER_REQUEST) {
                 if ($this->loopPagesParseSave()) {
                     $this->loopMarkets();
@@ -360,7 +345,7 @@ class AngelContext implements Context
         try {
             $this->session->getDriver()->wait(4000, "document.getElementsByClassName('more')");
             $this->session->getDriver()->click('//*[@id="ui-id-' . $nodeId . '"]/li[' . $row . ']');
-            $this->session->getDriver()->wait(10000, "document.getElementsByClassName('more')");
+            $this->session->getDriver()->wait(8000, "document.getElementsByClassName('more')");
             return true;
         } catch (\Exception $exception) {
             try {
@@ -368,7 +353,7 @@ class AngelContext implements Context
                 $nodeId = strval($nodeId);
                 $this->session->getDriver()->wait(4000, "document.getElementsByClassName('more')");
                 $this->session->getDriver()->click('//*[@id="ui-id-' . $nodeId . '"]/li[' . $row . ']');
-                $this->session->getDriver()->wait(10000, "document.getElementsByClassName('more')");
+                $this->session->getDriver()->wait(8000, "document.getElementsByClassName('more')");
                 return true;
             } catch (\Exception $exception) {
                 $this->angelLogger->error('[Line ' . __LINE__ . '] Could not click drop down for locations with exception: ' . $exception->getMessage());
@@ -479,9 +464,9 @@ class AngelContext implements Context
     {
         for ($page = 1; $page < self::MAX_PAGES; $page++) {
             try {
-                $this->session->getDriver()->wait(7000, "document.getElementsByClassName('more')");
+                $this->session->getDriver()->wait(6000, "document.getElementsByClassName('more')");
                 $this->session->getDriver()->click('//*[@class="more"]');
-                $this->session->getDriver()->wait(10000, "document.getElementsByClassName('more')");
+                $this->session->getDriver()->wait(8000, "document.getElementsByClassName('more')");
             } catch (\Exception $exception) {
                 break;
             }
@@ -571,6 +556,23 @@ class AngelContext implements Context
         return 'nodeEmpty';
     }
 
+    protected function parseDate(string $str)
+    {
+        $year = preg_replace("/[^0-9]/", '', $str);
+        $month = preg_replace("/[^a-zA-Z]/", '', $str);
+        if ($year == '') {
+            return '-';
+        } elseif ($month == '') {
+            $month = 'Jan';
+        }
+        $normalized = '20' . $year . ' ' . $month;
+        $date = strtotime($normalized);
+        $date = date('M y', $date);
+        $date = \DateTime::createFromFormat('M y', $date);
+
+        return $date;
+    }
+
     protected function saveLocation(string $locationName)
     {
         if ($locationName) {
@@ -652,7 +654,7 @@ class AngelContext implements Context
     {
         $company = new Company();
         $company->setName($data['Name']);
-        $company->setJoined($data['Joined']);
+        $company->setJoined($this->parseDate($data['Joined']));
         $company->setLocation($data['Location']);
         $company->setMarket($data['Market']);
         $company->setWebsite($data['Website']);
