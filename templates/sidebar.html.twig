@@ -6,3 +6,32 @@
         <span class="badge badge-primary badge-pill">{{ totalCompanies }}</span>
     </li>
 </ul>
+<br>
+<br>
+<br>
+
+<form action="{{ path('company.sort.date') }}" method="post">
+    <label class="text-secondary" for="datepicker1">
+        From
+    </label>
+    <input type="text" id="datepicker1" width="200" name="from">
+    <label class="text-secondary" for="datepicker2">
+        To
+    </label>
+    <input type="text" id="datepicker2" width="200" name="to">
+    <br>
+    <button class="btn btn-outline-secondary" type="submit">
+        Search
+    </button>
+</form>
+
+{% block javascripts %}
+    <script>
+        $('#datepicker1').datepicker({
+            uiLibrary: 'bootstrap4'
+        });
+        $('#datepicker2').datepicker({
+            uiLibrary: 'bootstrap4'
+        });
+    </script>
+{% endblock %}

@@ -22,30 +22,30 @@ class CompanyRepository extends ServiceEntityRepository
     public function findByCategory($category)
     {
         return $this->createQueryBuilder('c')
-            ->orderBy('c.'.$category, 'ASC')
+            ->orderBy('c.' . $category, 'ASC')
             ->getQuery()
-            ->getResult()
-            ;
+            ->getResult();
     }
 
-    public function findByName($name)
+    public function findByParameter($field, $value)
     {
         return $this->createQueryBuilder('c')
-            ->where('c.name = :name')
-            ->setParameter('name', $name)
+            ->where('c.' . $field . ' = :value')
+            ->setParameter('value', $value)
             ->getQuery()
-            ->getResult()
-        ;
+            ->getResult();
     }
 
-    public function findByWebsite($website)
+    public function findByDate($from, $to)
     {
         return $this->createQueryBuilder('c')
-            ->where('c.website = :website')
-            ->setParameter('website', $website)
+            ->where('c.joined > :from')
+            ->andwhere('c.joined < :to')
+            ->setParameter('from', $from)
+            ->setParameter('to', $to)
+            ->orderBy('c.joined', 'ASC')
             ->getQuery()
-            ->getResult()
-            ;
+            ->getResult();
     }
 
     // /**
