@@ -12,7 +12,6 @@ use App\Repository\MarketRepository;
 use Behat\Behat\Context\Context;
 use App\Entity\Company;
 use Behat\Mink\Session;
-use DMore\ChromeDriver\ChromeDriver;
 use Doctrine\ORM\EntityManagerInterface;
 use Masterminds\HTML5;
 use Psr\Log\LoggerInterface;
@@ -109,6 +108,9 @@ class AngelContext implements Context
 
     private function startExecution()
     {
+        $this->session->start();
+        $this->setSessionHeaders();
+
         $this->checkConnection(function(){
             $noConnection = true;
         }, self::RECONNECTION_ATTEMPT_MILLISECONDS);
@@ -117,6 +119,14 @@ class AngelContext implements Context
         $this->loopPagesParseSave();
         $this->loopLocations();
         $this->loopExecution();
+    }
+
+    protected function setSessionHeaders()
+    {
+        $this->session->setRequestHeader('user-agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/81.0.4044.122 Chrome/81.0.4044.122 Safari/537.36');
+        $this->session->setRequestHeader('accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9');
+        $this->session->setRequestHeader('accept-encoding', 'gzip, deflate');
+        $this->session->setRequestHeader('accept-language', 'en-US,en;q=0.9');
     }
 
     protected function checkConnection($f, $milliseconds)
@@ -154,6 +164,7 @@ class AngelContext implements Context
     protected function restartSession()
     {
         $this->session->restart();
+        $this->setSessionHeaders();
         $this->session->visit($this->site);
         $this->angelLogger->info('Session is restarted');
         $this->loopExecution();
@@ -164,7 +175,7 @@ class AngelContext implements Context
         do {
             $totalCompanies = $this->countTotalCompanies();
             if (!$totalCompanies) {
-                break;
+                $this->restartSession();
             }
             $totalCompaniesInDb = $this->companyRepository->findAll();
             $this->loopLocations();

@@ -1,5 +1,5 @@
 <nav class="navbar navbar-expand-lg navbar-light bg-light">
-    <a class="navbar-brand" href="#">Angel List</a>
+    <a class="navbar-brand" href="{{ path('company.main') }}">Angel List</a>
     <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
         <span class="navbar-toggler-icon"></span>
     </button>
@@ -19,7 +19,7 @@
             </li>
         </ul>
 
-        <form class="form-inline my-2 my-lg-0" action="{{ path('company.search') }}" method="post">
+        <form class="form-inline my-2 my-lg-0" action="{{ path('company.search') }}">
             <select name="field" id="inputState" class="form-control">
                 <option selected value="name">Search by name</option>
                 <option value="location">Search by location</option>

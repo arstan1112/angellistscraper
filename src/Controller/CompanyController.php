@@ -37,7 +37,7 @@ class CompanyController extends AbstractController
     }
 
     /**
-     * @Route("/", name="company.main", methods={"GET", "POST"})
+     * @Route("/", name="company.main")
      * @return Response
      */
     public function index()
@@ -88,7 +88,7 @@ class CompanyController extends AbstractController
     }
 
     /**
-     * @Route("/search", name="company.search", methods={"POST"})
+     * @Route("/search", name="company.search", methods={"GET"})
      * @param Request $request
      * @return Response
      */
@@ -114,7 +114,7 @@ class CompanyController extends AbstractController
     }
 
     /**
-     * @Route("/sort/date", name="company.sort.date", methods={"POST"})
+     * @Route("/sort/date", name="company.sort.date", methods={"GET"})
      * @param Request $request
      * @return Response
      */
