@@ -1,0 +1,77 @@
+{% extends 'base.html.twig' %}
+
+{% block body %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-sm-2 d-none d-md-block">
+            {% include 'sidebar.html.twig' %}
+        </div>
+        <div class="col-sm-10">
+            <div class="list-group-item" style="background-color: #f9f9f9">
+                    <div class="row">
+                        <div class="col-sm-2">
+                            <a href="{{ path('company.list', {category:name}) }}">
+                                Name
+                            </a>
+                        </div>
+                        <div class="col-sm-1">
+                            <a href="{{ path('company.list', {category:joined}) }}">
+                                Joined
+                            </a>
+                        </div>
+                        <div class="col-sm-1">
+                            <a href="{{ path('company.list', {category:location}) }}">
+                                Location
+                            </a>
+                        </div>
+                        <div class="col-sm-2">
+                            <a href="{{ path('company.list', {category:market}) }}">
+                                Market
+                            </a>
+                        </div>
+                        <div class="col-sm-2">
+                            Website
+                        </div>
+                        <div class="col-sm-2">
+                            Employees
+                        </div>
+                        <div class="col-sm-2">
+                            Raised (in USD)
+                        </div>
+                    </div>
+            </div>
+            {% for company in companies %}
+                <div class="list-group-item">
+                    <div class="row">
+                        <div class="col-sm-2">
+                            {{ company.name }}
+                        </div>
+                        <div class="col-sm-1">
+                            {{ company.joined|date('Y-m') }}
+                        </div>
+                        <div class="col-sm-1">
+                            {{ company.location }}
+                        </div>
+                        <div class="col-sm-2">
+                            {{ company.market }}
+                        </div>
+                        <div class="col-sm-2">
+                            <a href="https://{{ company.website }}">
+                                {{ company.website }}
+                            </a>
+                        </div>
+                        <div class="col-sm-2">
+                            {{ company.employees }}
+                        </div>
+                        <div class="col-sm-2">
+                            {{ company.raised|number_format(0, ',') }}
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+            <br>
+            {% include 'pagination.html.twig' %}
+        </div>
+    </div>
+</div>
+{% endblock %}

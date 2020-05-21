@@ -1,0 +1,40 @@
+version: '3.7'
+services:
+  mysql:
+    image: mysql:5.7.30
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: angellist
+      MYSQL_PASSWORD: root
+    ports: 
+      - '3306'
+    volumes:
+      - ./mysql/angellist:/var/lib/mysql/angellist
+    command:
+      - '--explicit_defaults_for_timestamp=1'
+    networks:
+      - angel
+      
+  php:
+    build:
+      context: .
+      dockerfile: php/Dockerfile
+    volumes:
+      - ./angel:/var/www/angel
+      - ./data:/var/www/data
+    links:
+      - 'mysql:mysql'
+    networks:
+      - angel
+  
+  chromium:
+    image: markadams/chromium-xvfb:latest
+    ports:
+      - '9222:9222'
+    tty: true
+    networks:
+      - angel
+
+networks:
+  angel:
+    driver: bridge
