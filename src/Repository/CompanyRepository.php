@@ -19,33 +19,46 @@ class CompanyRepository extends ServiceEntityRepository
         parent::__construct($registry, Company::class);
     }
 
+    public function findInOrder($order)
+    {
+        return $this->createQueryBuilder('c')
+            ->orderBy('c.joined', $order)
+            ->getQuery()
+            ->getResult()
+            ;
+    }
+
     public function findByCategory($category)
     {
         return $this->createQueryBuilder('c')
             ->orderBy('c.' . $category, 'ASC')
             ->getQuery()
-            ->getResult();
+            ->getResult()
+            ;
     }
 
-    public function findByParameter($field, $value)
+    public function findByParameter($field, $value, $order)
     {
         return $this->createQueryBuilder('c')
             ->where('c.' . $field . ' = :value')
             ->setParameter('value', $value)
+            ->orderBy('c.joined', $order)
             ->getQuery()
-            ->getResult();
+            ->getResult()
+            ;
     }
 
-    public function findByDate($from, $to)
+    public function findByDate($from, $to, $order)
     {
         return $this->createQueryBuilder('c')
             ->where('c.joined > :from')
             ->andwhere('c.joined < :to')
             ->setParameter('from', $from)
             ->setParameter('to', $to)
-            ->orderBy('c.joined', 'ASC')
+            ->orderBy('c.joined', $order)
             ->getQuery()
-            ->getResult();
+            ->getResult()
+            ;
     }
 
     // /**

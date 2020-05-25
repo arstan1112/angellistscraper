@@ -5,30 +5,57 @@
     </button>
 
     <div class="collapse navbar-collapse" id="navbarSupportedContent">
-        <ul class="navbar-nav mr-auto">
-            <li class="nav-item dropdown">
-                <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                    Sort by
-                </a>
-                <div class="dropdown-menu" aria-labelledby="navbarDropdown">
-                    <a class="dropdown-item" href="{{ path('company.list', {category:name}) }}">Name</a>
-                    <a class="dropdown-item" href="{{ path('company.list', {category:joined}) }}">Joined</a>
-                    <a class="dropdown-item" href="{{ path('company.list', {category:location}) }}">Location</a>
-                    <a class="dropdown-item" href="{{ path('company.list', {category:market}) }}">Market</a>
-                </div>
-            </li>
-        </ul>
+        {% if app.user %}
+            <ul class="navbar-nav mr-auto">
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        Sort by
+                    </a>
+                        <div class="dropdown-menu" aria-labelledby="navbarDropdown">
+                            <a class="dropdown-item" href="{{ path('company.list', {category:name}) }}">Name</a>
+                            <a class="dropdown-item" href="{{ path('company.list', {category:joined}) }}">Joined</a>
+                            <a class="dropdown-item" href="{{ path('company.list', {category:location}) }}">Location</a>
+                            <a class="dropdown-item" href="{{ path('company.list', {category:market}) }}">Market</a>
+                        </div>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link disabled" href="{{ path('app_register') }}">New user</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link disabled" href="{{ path('app_logout') }}">Logout</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link disabled" href="#">You are logged in as {{ app.user.username }}</a>
+                </li>
+            </ul>
 
-        <form class="form-inline my-2 my-lg-0" action="{{ path('company.search') }}">
-            <select name="field" id="inputState" class="form-control">
-                <option selected value="name">Search by name</option>
-                <option value="location">Search by location</option>
-                <option value="market">Search by market</option>
-            </select>
-            <input class="form-control mr-sm-2" type="search" placeholder="Type..." aria-label="Search" name="value" id="myCompany" autocomplete="off">
-            <button class="btn btn-outline-success my-2 my-sm-0" type="submit">
-                Search
-            </button>
-        </form>
+            <form class="form-inline my-2 my-lg-0" action="{{ path('company.search') }}">
+                <select name="field" id="inputState" class="form-control">
+                    {% if field is defined %}
+                        {% if field == 'location' %}
+                            <option selected value="location">Search by location</option>
+                        {% elseif field == 'market' %}
+                            <option selected value="market">Search by market</option>
+                        {% else %}
+                            <option selected value="name">Search by name</option>
+                        {% endif %}
+                        <option value="location">Search by location</option>
+                        <option value="market">Search by market</option>
+                    {% else %}
+                        <option selected value="name">Search by name</option>
+                        <option value="location">Search by location</option>
+                        <option value="market">Search by market</option>
+                    {% endif %}
+                </select>
+                {% if value is defined %}
+                    <input class="form-control mr-sm-2" type="search" placeholder="Type..." aria-label="Search" name="value" id="myCompany" autocomplete="off" value="{{ value }}">
+                {% else %}
+                    <input class="form-control mr-sm-2" type="search" placeholder="Type..." aria-label="Search" name="value" id="myCompany" autocomplete="off">
+                {% endif %}
+                <button class="btn btn-outline-success my-2 my-sm-0" type="submit">
+                    Search
+                </button>
+            </form>
+        {% endif %}
     </div>
 </nav>

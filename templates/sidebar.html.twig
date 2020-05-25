@@ -9,17 +9,35 @@
 <br>
 <br>
 <br>
-
+<form id="switchForm" action="{{ path('company.order') }}">
+    <label class="text-secondary" for="switch">
+        {% if order == 'DESC' %}
+            <input id="switch" name="order" type="checkbox" data-toggle="toggle" data-on="Old" data-off="New" data-onstyle="secondary" data-offstyle="light" value="desc">
+        {% else %}
+            <input id="switch" name="order" type="checkbox" checked data-toggle="toggle" data-on="Old" data-off="New" data-onstyle="secondary" data-offstyle="light" value="asc">
+        {% endif %}
+    </label>
+</form>
+<br>
+<br>
 <form action="{{ path('company.sort.date') }}">
     <label class="text-secondary" for="datepicker1">
         From
     </label>
-    <input type="text" id="datepicker1" width="200" name="from">
+    {% if from is defined %}
+        <input type="text" id="datepicker1" width="200" name="from" value="{{ from }}">
+    {% else %}
+        <input type="text" id="datepicker1" width="200" name="from">
+    {% endif %}
     <br>
     <label class="text-secondary" for="datepicker2">
         To
     </label>
-    <input type="text" id="datepicker2" width="200" name="to">
+    {% if to is defined %}
+        <input type="text" id="datepicker2" width="200" name="to" value="{{ to }}">
+    {% else %}
+        <input type="text" id="datepicker2" width="200" name="to">
+    {% endif %}
     <br>
     <button class="btn btn-outline-secondary" type="submit">
         Search
@@ -28,11 +46,16 @@
 
 {% block javascripts %}
     <script>
-        $('#datepicker1').datepicker({
-            uiLibrary: 'bootstrap4'
-        });
-        $('#datepicker2').datepicker({
-            uiLibrary: 'bootstrap4'
+        $( document ).ready(function() {
+            $('#datepicker1').datepicker({
+                uiLibrary: 'bootstrap4'
+            });
+            $('#datepicker2').datepicker({
+                uiLibrary: 'bootstrap4'
+            });
+            $('#switch').on('change' ,function() {
+                $('#switchForm').submit();
+            })
         });
     </script>
 {% endblock %}

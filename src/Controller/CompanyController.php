@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\Company;
+use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Knp\Component\Pager\Pagination\PaginationInterface;
 use Knp\Component\Pager\PaginatorInterface;
@@ -10,6 +11,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\Session\Session;
 use Symfony\Component\Routing\Annotation\Route;
 
 
@@ -26,6 +28,11 @@ class CompanyController extends AbstractController
     private $paginator;
 
     /**
+     * @var Session
+     */
+    private $session;
+
+    /**
      * CompanyController constructor.
      * @param EntityManagerInterface $em
      * @param PaginatorInterface $paginator
@@ -34,6 +41,7 @@ class CompanyController extends AbstractController
     {
         $this->em = $em;
         $this->paginator = $paginator;
+        $this->session = new Session();
     }
 
     /**
@@ -42,6 +50,23 @@ class CompanyController extends AbstractController
      */
     public function index()
     {
+        $this->session->set('order', 'DESC');
+        return $this->redirectToRoute('company.list');
+    }
+
+    /**
+     * @Route("/order", name="company.order")
+     * @param Request $request
+     * @return \Symfony\Component\HttpFoundation\RedirectResponse
+     */
+    public function switchOrder(Request $request)
+    {
+        if ($request->get('order')) {
+            $this->session->set('order', 'ASC');
+        } else {
+            $this->session->set('order', 'DESC');
+        }
+
         return $this->redirectToRoute('company.list');
     }
 
@@ -56,7 +81,7 @@ class CompanyController extends AbstractController
         if (!(empty($category))) {
             $companiesQuery = $this->em->getRepository(Company::class)->findByCategory($category);
         } else {
-            $companiesQuery = $this->em->getRepository(Company::class)->findAll();
+            $companiesQuery = $this->em->getRepository(Company::class)->findInOrder($this->session->get('order'));
         }
         $totalCompanies = count($companiesQuery);
         $companies = $this->paginator->paginate(
@@ -70,7 +95,8 @@ class CompanyController extends AbstractController
             'name' => 'name',
             'location' => 'location',
             'market' => 'market',
-            'joined' => 'joined'
+            'joined' => 'joined',
+            'order' => $this->session->get('order'),
         ]);
     }
 
@@ -96,7 +122,7 @@ class CompanyController extends AbstractController
     {
         $field = $request->get('field');
         $value = $request->get('value');
-        $companiesQuery = $this->em->getRepository(Company::class)->findByParameter($field, $value);
+        $companiesQuery = $this->em->getRepository(Company::class)->findByParameter($field, $value, $this->session->get('order'));
         $totalCompanies = count($companiesQuery);
         $companies = $this->paginator->paginate(
             $companiesQuery,
@@ -109,7 +135,10 @@ class CompanyController extends AbstractController
             'name' => 'name',
             'location' => 'location',
             'market' => 'market',
-            'joined' => 'joined'
+            'joined' => 'joined',
+            'order' => $this->session->get('order'),
+            'field' => $request->get('field'),
+            'value' => $request->get('value')
         ]);
     }
 
@@ -127,8 +156,7 @@ class CompanyController extends AbstractController
         $to = strtotime($request->get('to'));
         $to = date('M y', $to);
         $to = \DateTime::createFromFormat('M y', $to);
-
-        $companiesQuery = $this->em->getRepository(Company::class)->findByDate($from, $to);
+        $companiesQuery = $this->em->getRepository(Company::class)->findByDate($from, $to, $this->session->get('order'));
         $totalCompanies = count($companiesQuery);
         $companies = $this->paginator->paginate(
             $companiesQuery,
@@ -141,7 +169,10 @@ class CompanyController extends AbstractController
             'name' => 'name',
             'location' => 'location',
             'market' => 'market',
-            'joined' => 'joined'
+            'joined' => 'joined',
+            'order' => $this->session->get('order'),
+            'from' => $request->get('from'),
+            'to' => $request->get('to')
         ]);
     }
 }
