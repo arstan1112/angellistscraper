@@ -2,57 +2,70 @@
 
 Docker, chromium-browser
 
+##Process
+
+All commands should run in ./docker directory
 
 ## Installation and start docker
 
-In docker directory run
+First, to build images run
 
-**docker-compose build**
+```bash
+docker-compose build
+```
 
-to build images
+then, to start docker containers run
 
-then run
-
-**docker-compose up**
-
-to start docker containers
+```bash
+docker-compose up -d
+```
 
 
 ## Chromium container
 
-Run
+Then run
 
-**docker exec -it docker_chromium_1 bash**
+```bash
+docker exec -it docker_chromium_1 bash
+```
 
-to start terminal inside Chromium container
+and new terminal start inside Chromium container
 
-Then run 
+Then, to start Chromium browser run 
 
-**/usr/bin/chromium-browser --headless --remote-debugging-address=0.0.0.0 --remote-debugging-port=9222** 
-
-to start Chromium browser
-
-Then run 
-
-**exit**
+```bash
+/usr/bin/chromium-browser --headless --remote-debugging-address=0.0.0.0 --remote-debugging-port=9222
+```
 
 
 ## PHP container and start scraper
 
-Run
+In new terminal run
 
-**docker exec -it docker_php_1 bash**
+```bash
+docker exec -it docker_php_1 bash
+```
 
-to start terminal inside php container
+and terminal opens inside php container
 
 Then in /var/www/angel directory run
 
-**composer install**
+```bash
+composer install
+```
+
+then,
+
+
+```bash
+php bin/console doctrine:migrations:migrate
+```
 
 when finished, start scraper by running
 
-**vendor/bin/behat --config config/behat.yaml features/angellist.feature**
-
+```bash
+vendor/bin/behat --config config/behat.yaml features/angellist.feature
+```
 
 
 
