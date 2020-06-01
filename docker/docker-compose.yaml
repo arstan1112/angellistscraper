@@ -22,10 +22,12 @@ services:
     volumes:
       - ./angel:/var/www/angel
       - ./data:/var/www/data
-    links:
-      - 'mysql:mysql'
+      - ./apache/apache2/sites-available/000-default.conf:/etc/apache2/sites-available/000-default.conf
     networks:
       - angel
+    ports:
+      - 80:80
+      - 443:443
   
   chromium:
     image: markadams/chromium-xvfb:latest
